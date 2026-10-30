@@ -1,1175 +1,636 @@
 "use client";
 
 import Image from "next/image";
-import { FormEvent, useMemo, useState } from "react";
+import { Inter } from "next/font/google";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-type PropertyStatus = "Active" | "Pending" | "Draft";
-type PropertyCategory =
-  | "Land"
-  | "House"
-  | "Apartment"
-  | "Commercial"
-  | "Villa";
+const inter = Inter({ subsets: ["latin"], display: "swap" });
 
-interface Property {
+/* ───────── Types & data ───────── */
+type Status = "Approved" | "Pending" | "Draft" | "Rejected" | "Sold";
+type PType = "Land" | "House" | "Apartment" | "Commercial" | "Villa";
+type Mode = "Sell" | "Rent out";
+type View = "dashboard" | "listings" | "form";
+
+interface Listing {
   id: number;
   title: string;
   location: string;
-  category: PropertyCategory;
+  type: PType;
+  mode: Mode;
   price: number;
-  size: string;
+  views: number;
+  enquiries: number;
+  listed: string;
+  status: Status;
   description: string;
-  status: PropertyStatus;
+  address: string;
+  size: string;
+  bedrooms: string;
+  bathrooms: string;
+  files: string[];
 }
 
-const initialProperties: Property[] = [
-  {
-    id: 1,
-    title: "Residential Land in Galle",
-    location: "Galle, Southern Province",
-    category: "Land",
-    price: 4500000,
-    size: "15 perches",
-    description:
-      "Residential land in a convenient location in Galle, with access to nearby roads and essential facilities.",
-    status: "Active",
-  },
-  {
-    id: 2,
-    title: "Modern Family House",
-    location: "Matara, Southern Province",
-    category: "House",
-    price: 18500000,
-    size: "2,000 sq ft",
-    description:
-      "A spacious family home in Matara, suitable for comfortable family living.",
-    status: "Pending",
-  },
-  {
-    id: 3,
-    title: "Commercial Property",
-    location: "Weligama, Southern Province",
-    category: "Commercial",
-    price: 12000000,
-    size: "30 perches",
-    description:
-      "Commercial property in Weligama with potential for business development.",
-    status: "Draft",
-  },
+const L = (
+  id: number, title: string, location: string, type: PType, mode: Mode,
+  price: number, views: number, enquiries: number, listed: string, status: Status,
+  description = ""
+): Listing => ({
+  id, title, location, type, mode, price, views, enquiries, listed, status,
+  description, address: "", size: "", bedrooms: "", bathrooms: "", files: [],
+});
+
+const seed: Listing[] = [
+  L(1, "16 perch residential block in Negombo Beach", "Negombo Beach, Negombo", "Land", "Sell", 31500000, 2050, 0, "16 Aug 2026", "Draft"),
+  L(2, "Beachfront land — 20 perches, Habaraduwa", "Habaraduwa, Galle", "Land", "Sell", 27000000, 2366, 9, "21 Aug 2026", "Approved",
+    "A 20-perch beachfront block in Habaraduwa, Galle, with 24 ft road access and utilities close by. A short walk from the sea. The deed is freehold and a recent survey plan is available on request. Suitable for a family home, holiday property or long-term investment."),
+  L(3, "3-bedroom family house in Kundasale", "Kundasale, Kandy", "House", "Rent out", 185000, 1226, 2, "31 Aug 2026", "Pending"),
+  L(4, "Beachfront land — 80 perches, Tangalle", "Tangalle, Hambantota", "Land", "Sell", 24500000, 963, 1, "10 Sept 2026", "Rejected"),
+  L(5, "3-bedroom apartment in Battaramulla", "Battaramulla, Colombo", "Apartment", "Sell", 68000000, 1809, 9, "15 Sept 2026", "Approved"),
+  L(6, "Modern 4-bedroom home with garden — Unawatuna", "Unawatuna, Galle", "House", "Sell", 63500000, 2623, 9, "18 Sept 2026", "Approved"),
+  L(7, "Modern 4-bedroom home with garden — Kurunegala Town", "Kurunegala Town, Kurunegala", "House", "Sell", 61500000, 2682, 4, "24 Sept 2026", "Sold"),
+  L(8, "40 perch freehold block in Weligama", "Weligama, Matara", "Land", "Sell", 23500000, 2440, 9, "10d ago", "Approved"),
 ];
 
-const categories: PropertyCategory[] = [
-  "Land",
-  "House",
-  "Apartment",
-  "Commercial",
-  "Villa",
-];
+const TYPES: PType[] = ["Land", "House", "Apartment", "Commercial", "Villa"];
+const TABS = ["All", "Approved", "Pending", "Draft", "Rejected", "Sold"] as const;
+const STEPS = ["Basics", "Location & boundary", "Details", "Photos & documents", "Review"];
+const views14 = [56, 52, 48, 44, 45, 47, 50, 46, 50, 54, 54, 56, 60, 58];
 
-const emptyForm = {
-  title: "",
-  location: "",
-  category: "Land" as PropertyCategory,
-  price: "",
-  size: "",
-  description: "",
+const fmt = (n: number) => {
+  if (n >= 1_000_000) return `Rs ${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")} M`;
+  return `Rs ${n.toLocaleString("en-LK")}`;
 };
 
-type IconName =
-  | "dashboard"
-  | "building"
-  | "plus"
-  | "map"
-  | "check"
-  | "clock"
-  | "document"
-  | "search"
-  | "eye"
-  | "edit"
-  | "trash"
-  | "close"
-  | "location"
-  | "home"
-  | "menu";
+const emptyForm = {
+  mode: "Sell" as Mode, type: "Land" as PType, title: "", description: "",
+  location: "", address: "", price: "", size: "", bedrooms: "", bathrooms: "", files: [] as string[],
+};
+type Form = typeof emptyForm;
 
-function Icon({
-  name,
-  size = 20,
-}: {
-  name: IconName;
-  size?: number;
-}) {
-  const common = {
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true as const,
-  };
+/* ───────── Icons ───────── */
+const P: Record<string, string> = {
+  dash: "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
+  list: "M4 3h16v18H4zM9 21v-4h6v4M8 7h2m4 0h2M8 11h2m4 0h2",
+  plus: "M12 5v14M5 12h14",
+  chat: "M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z",
+  cal: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+  grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
+  search: "M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM16 16l4.5 4.5",
+  bell: "M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 21h4",
+  sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5",
+  eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z",
+  heart: "M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11Z",
+  tag: "M3 12V3h9l9 9-9 9zM7.5 7.5h.01",
+  clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 7v5l3 2",
+  check: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM8 12l2.5 2.5L16 9",
+  back: "M19 12H5M11 6l-6 6 6 6",
+  right: "M5 12h14M13 6l6 6-6 6",
+  dots: "M12 5h.01M12 12h.01M12 19h.01",
+  menu: "M4 6h16M4 12h16M4 18h16",
+  close: "M18 6 6 18M6 6l12 12",
+  chev: "m9 6 6 6-6 6",
+  spark: "M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z",
+  home: "M3 10l9-7 9 7M5 9v12h14V9M9 21v-7h6v7",
+  key: "M14 10a4 4 0 1 0-3.5 4L20 14v3h-3v3h-3v-3",
+  upload: "M12 16V4M7 9l5-5 5 5M4 20h16",
+};
+const Ic = ({ n, s = 18, c = "" }: { n: string; s?: number; c?: string }) => (
+  <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8}
+    strokeLinecap="round" strokeLinejoin="round" aria-hidden className={c}>
+    <path d={P[n]} />
+  </svg>
+);
 
-  const paths: Record<IconName, React.ReactNode> = {
-    dashboard: (
-      <>
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
-      </>
-    ),
-    building: (
-      <>
-        <rect x="4" y="3" width="16" height="18" rx="2" />
-        <path d="M9 21v-4h6v4M8 7h2m4 0h2M8 11h2m4 0h2M8 14h2m4 0h2" />
-      </>
-    ),
-    plus: <path d="M12 5v14M5 12h14" />,
-    map: (
-      <>
-        <path d="M20.5 10c0 5.5-8.5 12-8.5 12S3.5 15.5 3.5 10a8.5 8.5 0 1 1 17 0Z" />
-        <circle cx="12" cy="10" r="2.5" />
-      </>
-    ),
-    check: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="m8 12 2.5 2.5L16 9" />
-      </>
-    ),
-    clock: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 2" />
-      </>
-    ),
-    document: (
-      <>
-        <path d="M6 3h8l5 5v13H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
-        <path d="M14 3v5h5M8 13h8M8 17h8" />
-      </>
-    ),
-    search: (
-      <>
-        <circle cx="10.5" cy="10.5" r="6.5" />
-        <path d="m16 16 4.5 4.5" />
-      </>
-    ),
-    eye: (
-      <>
-        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-        <circle cx="12" cy="12" r="3" />
-      </>
-    ),
-    edit: (
-      <>
-        <path d="m15 5 4 4M4 20l4.5-1 11-11a2.8 2.8 0 0 0-4-4l-11 11L4 20Z" />
-      </>
-    ),
-    trash: (
-      <>
-        <path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 10v7m4-7v7" />
-      </>
-    ),
-    close: <path d="m18 6-12 12M6 6l12 12" />,
-    location: (
-      <>
-        <path d="M20 10c0 5.5-8 12-8 12S4 15.5 4 10a8 8 0 1 1 16 0Z" />
-        <circle cx="12" cy="10" r="2.5" />
-      </>
-    ),
-    home: (
-      <>
-        <path d="m3 10 9-7 9 7" />
-        <path d="M5 9v12h14V9M9 21v-7h6v7" />
-      </>
-    ),
-    menu: <path d="M4 6h16M4 12h16M4 18h16" />,
-  };
+/* ───────── Small pieces ───────── */
+const badge: Record<Status, string> = {
+  Approved: "bg-[#e7f5f3] text-[#0b8579]",
+  Pending: "bg-amber-50 text-amber-700",
+  Draft: "bg-orange-50 text-orange-600",
+  Rejected: "bg-red-50 text-red-600",
+  Sold: "bg-slate-100 text-slate-600",
+};
+const dot: Record<Status, string> = {
+  Approved: "bg-[#0b8579]", Pending: "bg-amber-500", Draft: "bg-orange-400",
+  Rejected: "bg-red-500", Sold: "bg-slate-400",
+};
+const StatusChip = ({ s }: { s: Status }) => (
+  <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${badge[s]}`}>
+    <span className={`h-1.5 w-1.5 rounded-full ${dot[s]}`} />{s}
+  </span>
+);
 
-  return <svg {...common}>{paths[name]}</svg>;
-}
-
-function formatPrice(price: number) {
-  return `LKR ${price.toLocaleString("en-LK")}`;
-}
-
-export default function SellerPage() {
-  const [properties, setProperties] =
-    useState<Property[]>(initialProperties);
-
-  const [activeSection, setActiveSection] = useState<
-    "dashboard" | "listings"
-  >("dashboard");
-
-  const [showForm, setShowForm] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [viewingProperty, setViewingProperty] =
-    useState<Property | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [formError, setFormError] = useState("");
-
-  const [form, setForm] = useState(emptyForm);
-
-  const activeCount = properties.filter(
-    (property) => property.status === "Active"
-  ).length;
-
-  const pendingCount = properties.filter(
-    (property) => property.status === "Pending"
-  ).length;
-
-  const totalAskingValue = properties.reduce(
-    (total, property) => total + property.price,
-    0
-  );
-
-  const filteredProperties = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) return properties;
-
-    return properties.filter((property) =>
-      [
-        property.title,
-        property.location,
-        property.category,
-        property.status,
-      ].some((value) => value.toLowerCase().includes(query))
-    );
-  }, [properties, searchQuery]);
-
-  function openNewPropertyForm() {
-    setEditingId(null);
-    setForm(emptyForm);
-    setFormError("");
-    setShowForm(true);
-    setActiveSection("listings");
-    setMobileMenuOpen(false);
-  }
-
-  function openEditForm(property: Property) {
-    setEditingId(property.id);
-    setForm({
-      title: property.title,
-      location: property.location,
-      category: property.category,
-      price: String(property.price),
-      size: property.size,
-      description: property.description,
-    });
-    setFormError("");
-    setShowForm(true);
-    setActiveSection("listings");
-  }
-
-  function cancelForm() {
-    setShowForm(false);
-    setEditingId(null);
-    setForm(emptyForm);
-    setFormError("");
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError("");
-
-    const price = Number(form.price);
-
-    if (!form.title.trim() || !form.location.trim()) {
-      setFormError("Please enter the property title and location.");
-      return;
-    }
-
-    if (!Number.isFinite(price) || price <= 0) {
-      setFormError("Please enter a valid asking price.");
-      return;
-    }
-
-    const updatedPropertyData = {
-      title: form.title.trim(),
-      location: form.location.trim(),
-      category: form.category,
-      price,
-      size: form.size.trim(),
-      description: form.description.trim(),
-    };
-
-    if (editingId !== null) {
-      setProperties((current) =>
-        current.map((property) =>
-          property.id === editingId
-            ? { ...property, ...updatedPropertyData }
-            : property
-        )
-      );
-    } else {
-      const newProperty: Property = {
-        id: Date.now(),
-        ...updatedPropertyData,
-        status: "Draft",
-      };
-
-      setProperties((current) => [newProperty, ...current]);
-    }
-
-    cancelForm();
-  }
-
-  function deleteProperty(id: number) {
-    const property = properties.find((item) => item.id === id);
-
-    if (!property) return;
-
-    const confirmed = window.confirm(
-      `Delete "${property.title}"? This action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    setProperties((current) =>
-      current.filter((property) => property.id !== id)
-    );
-
-    if (viewingProperty?.id === id) {
-      setViewingProperty(null);
-    }
-  }
-
-  function changeStatus(id: number, status: PropertyStatus) {
-    setProperties((current) =>
-      current.map((property) =>
-        property.id === id ? { ...property, status } : property
-      )
-    );
-  }
-
-  function navigateTo(section: "dashboard" | "listings") {
-    setActiveSection(section);
-    setMobileMenuOpen(false);
-
-    if (section === "dashboard") {
-      cancelForm();
-    }
-  }
-
+function Spark({ data, color }: { data: number[]; color: string }) {
+  const max = Math.max(...data), min = Math.min(...data);
+  const pts = data.map((v, i) => `${(i / (data.length - 1)) * 100},${28 - ((v - min) / (max - min || 1)) * 24}`).join(" ");
   return (
-    <div className="min-h-screen bg-[#f6f8fb] text-[#172c48]">
-      {/* Sidebar */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-[274px] flex-col border-r border-[#e0e7f0] bg-white transition-transform duration-200 ${
-          mobileMenuOpen
-            ? "translate-x-0"
-            : "-translate-x-full md:translate-x-0"
-        }`}
-      >
-        <div className="flex min-h-[88px] items-center border-b border-[#edf0f5] px-6">
-          <a
-            href="/"
-            className="flex items-center"
-            aria-label="Plotora home"
-          >
-            <Image
-              src="/plotora-logo.png"
-              alt="Plotora"
-              width={220}
-              height={78}
-              priority
-              className="h-auto w-[166px] object-contain"
-            />
-          </a>
-
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen(false)}
-            className="ml-auto rounded-lg p-2 text-slate-500 hover:bg-slate-100 md:hidden"
-            aria-label="Close navigation"
-          >
-            <Icon name="close" />
-          </button>
-        </div>
-
-        <div className="px-6 pb-4 pt-3">
-          <p className="text-xs text-slate-500">Seller workspace</p>
-        </div>
-
-        <nav className="flex-1 px-4 py-3">
-          <p className="mb-4 px-2 text-[11px] font-bold tracking-[0.14em] text-slate-400">
-            WORKSPACE
-          </p>
-
-          <button
-            type="button"
-            onClick={() => navigateTo("dashboard")}
-            className={`mb-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm transition ${
-              activeSection === "dashboard"
-                ? "bg-[#e9faf3] font-semibold text-[#007f60]"
-                : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Icon name="dashboard" size={19} />
-            Dashboard
-          </button>
-
-          <button
-            type="button"
-            onClick={() => navigateTo("listings")}
-            className={`mb-2 flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm transition ${
-              activeSection === "listings"
-                ? "bg-[#e9faf3] font-semibold text-[#007f60]"
-                : "text-slate-600 hover:bg-slate-50"
-            }`}
-          >
-            <Icon name="building" size={19} />
-            My Listings
-          </button>
-
-          <button
-            type="button"
-            onClick={openNewPropertyForm}
-            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3.5 text-left text-sm text-slate-600 transition hover:bg-slate-50"
-          >
-            <Icon name="plus" size={20} />
-            Add Property
-          </button>
-
-          <div className="mt-12 rounded-3xl bg-[#eafbf3] p-5">
-            <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl text-[#008663]">
-              <Icon name="map" size={25} />
-            </div>
-
-            <h3 className="mb-2 font-serif text-base font-bold text-[#15324a]">
-              Location first
-            </h3>
-
-            <p className="text-sm leading-6 text-slate-600">
-              Help buyers discover your property through its location.
-            </p>
-          </div>
-        </nav>
-
-        <div className="border-t border-[#edf0f5] p-5">
-          <p className="text-xs text-slate-400">
-            Plotora Seller Workspace
-          </p>
-          <p className="mt-1 text-xs text-slate-400">
-            Property management
-          </p>
-        </div>
-      </aside>
-
-      {/* Mobile menu overlay */}
-      {mobileMenuOpen && (
-        <button
-          type="button"
-          aria-label="Close navigation overlay"
-          onClick={() => setMobileMenuOpen(false)}
-          className="fixed inset-0 z-30 bg-slate-950/30 md:hidden"
-        />
-      )}
-
-      {/* Main area */}
-      <div className="min-h-screen md:ml-[274px]">
-        {/* Top header */}
-        <header className="sticky top-0 z-20 flex min-h-[88px] items-center justify-between gap-4 border-b border-[#e0e7f0] bg-white px-5 sm:px-8 lg:px-9">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setMobileMenuOpen(true)}
-              className="rounded-xl p-2 text-slate-600 hover:bg-slate-100 md:hidden"
-              aria-label="Open navigation"
-            >
-              <Icon name="menu" size={23} />
-            </button>
-
-            <div>
-              <p className="text-xs text-slate-500">Seller Portal</p>
-              <h1 className="mt-1 font-serif text-2xl font-bold text-[#12243e]">
-                {activeSection === "dashboard"
-                  ? "My Dashboard"
-                  : "My Listings"}
-              </h1>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={openNewPropertyForm}
-            className="inline-flex shrink-0 items-center gap-2 rounded-2xl bg-[#00845f] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#006d4f] sm:px-5"
-          >
-            <Icon name="plus" size={19} />
-            <span className="hidden sm:inline">Add Property</span>
-            <span className="sm:hidden">Add</span>
-          </button>
-        </header>
-
-        <main className="mx-auto max-w-[1600px] px-4 py-7 sm:px-7 lg:px-9 lg:py-9">
-          {/* Welcome */}
-          <section className="mb-8">
-            <h2 className="font-serif text-xl font-bold text-[#172b45]">
-              Welcome back!
-            </h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Manage your properties and listing activity.
-            </p>
-          </section>
-
-          {/* Statistics */}
-          <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard
-              icon="building"
-              label="Total Listings"
-              value={String(properties.length)}
-            />
-
-            <StatCard
-              icon="check"
-              label="Active Listings"
-              value={String(activeCount)}
-            />
-
-            <StatCard
-              icon="clock"
-              label="Pending Review"
-              value={String(pendingCount)}
-            />
-
-            <StatCard
-              icon="document"
-              label="Total Asking Value"
-              value={formatCompactPrice(totalAskingValue)}
-            />
-          </section>
-
-          {/* Add / Edit form */}
-          {showForm && (
-            <section
-              id="property-form"
-              className="mb-8 overflow-hidden rounded-3xl border border-[#e0e7f0] bg-white shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-4 border-b border-[#edf0f5] px-6 py-5 sm:px-7">
-                <div>
-                  <h2 className="font-serif text-xl font-bold text-[#172b45]">
-                    {editingId !== null
-                      ? "Edit Property Listing"
-                      : "Create a Property Listing"}
-                  </h2>
-
-                  <p className="mt-1 text-sm text-slate-500">
-                    Enter accurate property details for potential buyers.
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={cancelForm}
-                  className="rounded-xl p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
-                  aria-label="Close property form"
-                >
-                  <Icon name="close" size={21} />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="p-6 sm:p-7">
-                <div className="grid grid-cols-1 gap-x-5 gap-y-5 lg:grid-cols-2">
-                  <FormField label="Property title" required>
-                    <input
-                      value={form.title}
-                      onChange={(event) =>
-                        setForm({ ...form, title: event.target.value })
-                      }
-                      placeholder="e.g. Residential land in Galle"
-                      className="form-input"
-                      required
-                      maxLength={120}
-                    />
-                  </FormField>
-
-                  <FormField label="Location" required>
-                    <input
-                      value={form.location}
-                      onChange={(event) =>
-                        setForm({ ...form, location: event.target.value })
-                      }
-                      placeholder="Town, district or province"
-                      className="form-input"
-                      required
-                      maxLength={160}
-                    />
-                  </FormField>
-
-                  <FormField label="Property category" required>
-                    <select
-                      value={form.category}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          category: event.target.value as PropertyCategory,
-                        })
-                      }
-                      className="form-input"
-                    >
-                      {categories.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </FormField>
-
-                  <FormField label="Asking price (LKR)" required>
-                    <input
-                      type="number"
-                      min="1"
-                      step="1"
-                      value={form.price}
-                      onChange={(event) =>
-                        setForm({ ...form, price: event.target.value })
-                      }
-                      placeholder="e.g. 4500000"
-                      className="form-input"
-                      required
-                    />
-                  </FormField>
-
-                  <FormField label="Land extent / Property size">
-                    <input
-                      value={form.size}
-                      onChange={(event) =>
-                        setForm({ ...form, size: event.target.value })
-                      }
-                      placeholder="e.g. 15 perches or 2,000 sq ft"
-                      className="form-input"
-                      maxLength={100}
-                    />
-                  </FormField>
-
-                  <FormField label="Property description">
-                    <textarea
-                      value={form.description}
-                      onChange={(event) =>
-                        setForm({
-                          ...form,
-                          description: event.target.value,
-                        })
-                      }
-                      placeholder="Describe the property and nearby facilities..."
-                      className="form-input min-h-[120px] resize-y"
-                      maxLength={2000}
-                    />
-
-                    <p className="mt-1 text-xs text-slate-400">
-                      {form.description.length}/2000 characters
-                    </p>
-                  </FormField>
-                </div>
-
-                {formError && (
-                  <p
-                    role="alert"
-                    className="mt-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                  >
-                    {formError}
-                  </p>
-                )}
-
-                <div className="mt-7 flex flex-wrap gap-3">
-                  <button
-                    type="submit"
-                    className="rounded-xl bg-[#00845f] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#006d4f]"
-                  >
-                    {editingId !== null
-                      ? "Save Changes"
-                      : "Save as Draft"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={cancelForm}
-                    className="rounded-xl border border-[#dfe7f1] bg-white px-6 py-3 text-sm font-semibold text-[#172b45] transition hover:bg-slate-50"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </section>
-          )}
-
-          {/* Listings */}
-          <section className="overflow-hidden rounded-3xl border border-[#e0e7f0] bg-white shadow-sm">
-            <div className="flex flex-col gap-4 border-b border-[#e0e7f0] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-              <div>
-                <h2 className="font-serif text-xl font-bold text-[#172b45]">
-                  My Listings
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Review and manage your properties.
-                </p>
-              </div>
-
-              <div className="relative w-full sm:max-w-[275px]">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                  <Icon name="search" size={19} />
-                </span>
-
-                <input
-                  type="search"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                  placeholder="Search properties..."
-                  aria-label="Search properties"
-                  className="w-full rounded-2xl border border-[#dfe7f1] bg-white py-3 pl-10 pr-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-[#00845f] focus:ring-2 focus:ring-[#00845f]/10"
-                />
-              </div>
-            </div>
-
-            {/* Table for larger screens */}
-            <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[760px] border-collapse text-left">
-                <thead>
-                  <tr className="bg-[#f7f9fc] text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">
-                    <th className="px-5 py-4">Property</th>
-                    <th className="px-4 py-4">Category</th>
-                    <th className="px-4 py-4">Price</th>
-                    <th className="px-4 py-4">Status</th>
-                    <th className="px-5 py-4 text-center">Actions</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {filteredProperties.map((property) => (
-                    <tr
-                      key={property.id}
-                      className="border-t border-[#edf0f5] transition hover:bg-[#fbfcfe]"
-                    >
-                      <td className="px-5 py-5">
-                        <div className="flex items-center gap-3">
-                          <PropertyIcon />
-
-                          <div className="min-w-0">
-                            <p className="font-serif text-sm font-bold text-[#172b45]">
-                              {property.title}
-                            </p>
-
-                            <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                              <Icon name="location" size={14} />
-                              {property.location}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td className="px-4 py-5 text-sm text-slate-600">
-                        {property.category}
-                      </td>
-
-                      <td className="whitespace-nowrap px-4 py-5 text-sm font-bold text-[#172b45]">
-                        {formatPrice(property.price)}
-                      </td>
-
-                      <td className="px-4 py-5">
-                        <StatusBadge status={property.status} />
-                      </td>
-
-                      <td className="px-5 py-5">
-                        <div className="flex items-center justify-center gap-1">
-                          <ActionButton
-                            label="View property"
-                            onClick={() => setViewingProperty(property)}
-                            icon="eye"
-                          />
-
-                          <ActionButton
-                            label="Edit property"
-                            onClick={() => openEditForm(property)}
-                            icon="edit"
-                          />
-
-                          <ActionButton
-                            label="Delete property"
-                            onClick={() => deleteProperty(property.id)}
-                            icon="trash"
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Cards for mobile screens */}
-            <div className="divide-y divide-[#edf0f5] md:hidden">
-              {filteredProperties.map((property) => (
-                <article key={property.id} className="p-5">
-                  <div className="flex items-start gap-3">
-                    <PropertyIcon />
-
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-serif text-sm font-bold text-[#172b45]">
-                        {property.title}
-                      </h3>
-
-                      <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
-                        <Icon name="location" size={14} />
-                        {property.location}
-                      </p>
-
-                      <p className="mt-3 text-sm font-bold">
-                        {formatPrice(property.price)}
-                      </p>
-
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <StatusBadge status={property.status} />
-
-                        <span className="text-xs text-slate-500">
-                          {property.category}
-                        </span>
-                      </div>
-
-                      <div className="mt-4 flex gap-1">
-                        <ActionButton
-                          label="View property"
-                          onClick={() => setViewingProperty(property)}
-                          icon="eye"
-                        />
-
-                        <ActionButton
-                          label="Edit property"
-                          onClick={() => openEditForm(property)}
-                          icon="edit"
-                        />
-
-                        <ActionButton
-                          label="Delete property"
-                          onClick={() => deleteProperty(property.id)}
-                          icon="trash"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            {filteredProperties.length === 0 && (
-              <div className="px-5 py-14 text-center">
-                <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-500">
-                  <Icon name="search" size={23} />
-                </div>
-
-                <h3 className="font-semibold text-[#172b45]">
-                  No properties found
-                </h3>
-
-                <p className="mt-2 text-sm text-slate-500">
-                  Try another search term or add a new property.
-                </p>
-
-                {searchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery("")}
-                    className="mt-4 text-sm font-semibold text-[#00845f] hover:underline"
-                  >
-                    Clear search
-                  </button>
-                )}
-              </div>
-            )}
-          </section>
-
-          {/* Footer */}
-          <footer className="py-8 text-center text-xs text-slate-400">
-            Plotora Seller Workspace · Frontend prototype
-          </footer>
-        </main>
-      </div>
-
-      {/* Property details modal */}
-      {viewingProperty && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setViewingProperty(null);
-            }
-          }}
-        >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="property-details-title"
-            className="my-auto w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-[#00845f]">
-                  Property details
-                </p>
-
-                <h2
-                  id="property-details-title"
-                  className="mt-2 font-serif text-xl font-bold text-[#172b45]"
-                >
-                  {viewingProperty.title}
-                </h2>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setViewingProperty(null)}
-                className="rounded-xl p-2 text-slate-500 hover:bg-slate-100"
-                aria-label="Close property details"
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-
-            <div className="space-y-5 p-6">
-              <div className="rounded-2xl bg-[#eafbf3] p-5">
-                <p className="text-sm text-slate-600">Asking price</p>
-
-                <p className="mt-1 text-2xl font-bold text-[#00845f]">
-                  {formatPrice(viewingProperty.price)}
-                </p>
-              </div>
-
-              <DetailRow
-                label="Location"
-                value={viewingProperty.location}
-              />
-
-              <DetailRow
-                label="Category"
-                value={viewingProperty.category}
-              />
-
-              <DetailRow
-                label="Property size"
-                value={viewingProperty.size || "Not specified"}
-              />
-
-              <DetailRow
-                label="Listing status"
-                value={viewingProperty.status}
-              />
-
-              <div>
-                <p className="text-sm font-semibold text-slate-700">
-                  Description
-                </p>
-
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-600">
-                  {viewingProperty.description ||
-                    "No description has been added."}
-                </p>
-              </div>
-
-              <div className="border-t border-slate-100 pt-5">
-                <label
-                  htmlFor="listing-status"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Update listing status
-                </label>
-
-                <select
-                  id="listing-status"
-                  value={viewingProperty.status}
-                  onChange={(event) => {
-                    const status = event.target.value as PropertyStatus;
-
-                    changeStatus(viewingProperty.id, status);
-
-                    setViewingProperty({
-                      ...viewingProperty,
-                      status,
-                    });
-                  }}
-                  className="form-input"
-                >
-                  <option value="Draft">Draft</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Active">Active</option>
-                </select>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    openEditForm(viewingProperty);
-                    setViewingProperty(null);
-                  }}
-                  className="rounded-xl bg-[#00845f] px-5 py-3 text-sm font-semibold text-white hover:bg-[#006d4f]"
-                >
-                  Edit Property
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setViewingProperty(null)}
-                  className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </section>
-        </div>
-      )}
-
-      {/* Component styles */}
-      <style jsx global>{`
-        .form-input {
-          display: block;
-          width: 100%;
-          border: 1px solid #dfe7f1;
-          border-radius: 14px;
-          background: #ffffff;
-          padding: 13px 15px;
-          color: #172b45;
-          font-size: 14px;
-          outline: none;
-          transition:
-            border-color 150ms ease,
-            box-shadow 150ms ease;
-        }
-
-        .form-input::placeholder {
-          color: #94a3b8;
-        }
-
-        .form-input:focus {
-          border-color: #00845f;
-          box-shadow: 0 0 0 3px rgb(0 132 95 / 10%);
-        }
-
-        .form-input:disabled {
-          background: #f8fafc;
-          cursor: not-allowed;
-        }
-      `}</style>
-    </div>
+    <svg viewBox="0 0 100 30" className="h-8 w-24" preserveAspectRatio="none" aria-hidden>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" />
+    </svg>
   );
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: IconName;
-  label: string;
-  value: string;
+function Stat({ label, value, icon, delta, note, up = true, color }: {
+  label: string; value: string; icon: string; delta: string; note?: string; up?: boolean; color: string;
 }) {
+  const data = up ? [3, 4, 3, 5, 6, 5, 8, 9] : [9, 8, 8, 6, 5, 6, 4, 3];
   return (
-    <article className="rounded-3xl border border-[#e0e7f0] bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md sm:p-6">
-      <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#e9faf3] text-[#00845f]">
-        <Icon name={icon} size={23} />
+    <article className="rounded-2xl border border-[#e3e9f0] bg-white p-4">
+      <div className="flex items-start justify-between">
+        <p className="text-xs text-[#6c7a8f]">{label}</p>
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e7f5f3] text-[#0b8579]"><Ic n={icon} s={15} /></span>
       </div>
-
-      <p className="text-sm text-slate-500">{label}</p>
-
-      <p className="mt-2 break-words font-serif text-2xl font-bold text-[#172b45]">
-        {value}
-      </p>
+      <p className="mt-1 text-2xl font-bold text-[#0f2038]">{value}</p>
+      <div className="mt-2 flex items-end justify-between">
+        <div className="flex items-center gap-2 text-[11px]">
+          <span className={`rounded px-1.5 py-0.5 font-semibold ${up ? "bg-[#e7f5f3] text-[#0b8579]" : "bg-red-50 text-red-600"}`}>
+            {up ? "↗" : "↘"} {delta}
+          </span>
+          {note && <span className="text-[#6c7a8f]">{note}</span>}
+        </div>
+        <Spark data={data} color={color} />
+      </div>
     </article>
   );
 }
 
-function FormField({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-sm font-medium text-[#172b45]">
-        {label}
-        {required && <span className="ml-1 text-red-500">*</span>}
-      </label>
+const Field = ({ label, req, hint, children }: { label: string; req?: boolean; hint?: string; children: React.ReactNode }) => (
+  <div>
+    <label className="mb-1.5 block text-xs font-semibold text-[#0f2038]">{label}{req && <span className="text-red-500"> *</span>}</label>
+    {children}
+    {hint && <p className="mt-1 text-[11px] text-slate-400">{hint}</p>}
+  </div>
+);
+const inp = "w-full rounded-lg border border-[#dfe7f1] bg-white px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-[#0b8579] focus:ring-2 focus:ring-[#0b8579]/10";
 
-      {children}
-    </div>
-  );
-}
+/* ───────── Page ───────── */
+export default function SellerPage() {
+  const [items, setItems] = useState<Listing[]>(seed);
+  const [view, setView] = useState<View>("dashboard");
+  const [tab, setTab] = useState<(typeof TABS)[number]>("All");
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState<number[]>([]);
+  const [menu, setMenu] = useState<number | null>(null);
+  const [nav, setNav] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
+  const [step, setStep] = useState(0);
+  const [form, setForm] = useState<Form>(emptyForm);
+  const [err, setErr] = useState("");
+  const [jump, setJump] = useState("");
+  const jumpRef = useRef<HTMLInputElement>(null);
 
-function PropertyIcon() {
-  return (
-    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#e9faf3] text-[#00845f]">
-      <Icon name="home" size={23} />
-    </div>
-  );
-}
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); jumpRef.current?.focus(); }
+    };
+    const c = () => setMenu(null);
+    window.addEventListener("keydown", k);
+    window.addEventListener("click", c);
+    return () => { window.removeEventListener("keydown", k); window.removeEventListener("click", c); };
+  }, []);
 
-function StatusBadge({ status }: { status: PropertyStatus }) {
-  const styles: Record<PropertyStatus, string> = {
-    Active: "bg-[#e9faf3] text-[#00845f]",
-    Pending: "bg-[#fff7e5] text-[#b96b00]",
-    Draft: "bg-[#f0f4f8] text-[#52657d]",
-  };
+  const count = (s: string) => (s === "All" ? items.length : items.filter((i) => i.status === s).length);
+  const live = count("Approved");
+  const editing = editId !== null ? items.find((i) => i.id === editId) : undefined;
 
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${styles[status]}`}
-    >
-      {status}
-    </span>
-  );
-}
+  const rows = useMemo(() => {
+    const t = q.trim().toLowerCase();
+    return items
+      .filter((i) => tab === "All" || i.status === tab)
+      .filter((i) => !t || [i.title, i.location, i.type, i.status].some((v) => v.toLowerCase().includes(t)));
+  }, [items, tab, q]);
 
-function ActionButton({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: IconName;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      className="rounded-lg p-2 text-slate-500 transition hover:bg-[#e9faf3] hover:text-[#00845f]"
-    >
-      <Icon name={icon} size={19} />
-    </button>
-  );
-}
+  const top = [...items].filter((i) => i.status === "Approved").sort((a, b) => b.views - a.views).slice(0, 4);
 
-function DetailRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3">
-      <span className="text-sm text-slate-500">{label}</span>
-      <span className="text-right text-sm font-semibold text-[#172b45]">
-        {value}
-      </span>
-    </div>
-  );
-}
+  function go(v: View) { setView(v); setNav(false); setEditId(null); }
+  function newListing() { setEditId(null); setForm(emptyForm); setStep(0); setErr(""); setView("form"); setNav(false); }
+  function edit(i: Listing) {
+    setEditId(i.id);
+    setForm({ mode: i.mode, type: i.type, title: i.title, description: i.description, location: i.location,
+      address: i.address, price: String(i.price), size: i.size, bedrooms: i.bedrooms, bathrooms: i.bathrooms, files: i.files });
+    setStep(0); setErr(""); setView("form");
+  }
+  function remove(i: Listing) {
+    if (window.confirm(`Delete "${i.title}"? This can't be undone.`)) setItems((c) => c.filter((x) => x.id !== i.id));
+  }
+  function setStatus(id: number, status: Status) { setItems((c) => c.map((x) => (x.id === id ? { ...x, status } : x))); }
 
-function formatCompactPrice(price: number) {
-  if (price >= 1_000_000) {
-    return `LKR ${(price / 1_000_000).toFixed(1)}M`;
+  function next() {
+    if (step === 0 && (!form.title.trim() || !form.description.trim())) {
+      setErr("Add a listing title and description to continue."); return;
+    }
+    if (step === 1 && !form.location.trim()) { setErr("Add the town or district to continue."); return; }
+    if (step === 2 && !(Number(form.price) > 0)) { setErr("Enter a valid asking price to continue."); return; }
+    setErr(""); setStep((s) => Math.min(4, s + 1));
+  }
+  function save(status: Status) {
+    const data = { mode: form.mode, type: form.type, title: form.title.trim(), description: form.description.trim(),
+      location: form.location.trim(), address: form.address.trim(), price: Number(form.price) || 0,
+      size: form.size, bedrooms: form.bedrooms, bathrooms: form.bathrooms, files: form.files };
+    if (editId !== null) {
+      setItems((c) => c.map((x) => (x.id === editId ? { ...x, ...data, status: status === "Draft" ? x.status : status } : x)));
+    } else {
+      setItems((c) => [{ ...L(Date.now(), "", "", "Land", "Sell", 0, 0, 0, "Today", status), ...data }, ...c]);
+    }
+    setView("listings"); setEditId(null);
+  }
+  function draftWithAI() {
+    const t = `${form.type === "Land" ? "Land" : form.type} for ${form.mode === "Sell" ? "sale" : "rent"}${form.location ? ` in ${form.location}` : ""}. Describe access roads, utilities, nearby facilities and deed or survey details.`;
+    setForm({ ...form, description: form.description || t });
+  }
+  function doJump(e: React.FormEvent) {
+    e.preventDefault();
+    const t = jump.toLowerCase();
+    if (t.includes("add") || t.includes("new")) newListing();
+    else if (t.includes("list")) go("listings");
+    else if (t.includes("dash")) go("dashboard");
+    setJump("");
   }
 
-  return formatPrice(price);
+  const crumb = view === "form" ? (editing ? ["My Listings", "Edit"] : ["My Listings", "Add Property"])
+    : [view === "dashboard" ? "Dashboard" : "My Listings"];
+
+  const NavBtn = ({ icon, label, on, onClick, badge: b }: { icon: string; label: string; on?: boolean; onClick: () => void; badge?: number }) => (
+    <button type="button" onClick={onClick}
+      className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${on ? "bg-[#e7f5f3] font-semibold text-[#0b8579]" : "text-slate-600 hover:bg-slate-50"}`}>
+      <Ic n={icon} s={17} />{label}
+      {b ? <span className="ml-auto rounded-full bg-[#ddeeec] px-1.5 text-[11px] font-semibold text-[#096d63]">{b}</span> : null}
+    </button>
+  );
+  const Group = ({ t }: { t: string }) => <p className="mb-1.5 mt-5 px-3 text-[10px] font-bold tracking-[0.12em] text-slate-400">{t}</p>;
+
+  return (
+    <div className={`${inter.className} min-h-screen bg-[#f3f6fa] text-[#0f2038] antialiased [&_h1]:tracking-[-0.03em] [&_h2]:tracking-[-0.02em]`}>
+      {/* Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-[220px] flex-col border-r border-[#e3e9f0] bg-white transition-transform md:translate-x-0 ${nav ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="flex h-16 items-center px-4">
+          <a href="/" aria-label="Plotora home">
+            <Image src="/plotora-logo.png" alt="Plotora" width={0} height={0} sizes="140px" unoptimized priority style={{ width: 140, height: "auto" }} />
+          </a>
+          <button type="button" aria-label="Close navigation" onClick={() => setNav(false)} className="ml-auto p-1 md:hidden"><Ic n="close" /></button>
+        </div>
+        <div className="mx-3 mb-2 flex items-center gap-2.5 rounded-xl border border-[#e3e9f0] p-2.5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-400 text-white"><Ic n="tag" s={16} /></span>
+          <div><p className="text-xs font-semibold">Seller / Owner</p><p className="text-[11px] text-[#6c7a8f]">Private portal</p></div>
+        </div>
+        <nav className="flex-1 overflow-y-auto px-3">
+          <Group t="OVERVIEW" />
+          <NavBtn icon="dash" label="Dashboard" on={view === "dashboard"} onClick={() => go("dashboard")} />
+          <Group t="LISTINGS" />
+          <NavBtn icon="list" label="My listings" on={view === "listings" || (view === "form" && !!editing)} onClick={() => go("listings")} />
+          <NavBtn icon="plus" label="Add property" on={view === "form" && !editing} onClick={newListing} />
+          <Group t="BUYERS" />
+          <NavBtn icon="chat" label="Enquiries" badge={2} onClick={() => {}} />
+          <NavBtn icon="cal" label="Site visits" onClick={() => {}} />
+          <div className="mt-4 border-t border-[#edf0f5] pt-3">
+            <NavBtn icon="grid" label="More workspace tools" onClick={() => {}} />
+          </div>
+        </nav>
+      </aside>
+      {nav && <button type="button" aria-label="Close navigation overlay" onClick={() => setNav(false)} className="fixed inset-0 z-30 bg-slate-950/30 md:hidden" />}
+
+      <div className="md:ml-[220px]">
+        {/* Top bar */}
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-[#e3e9f0] bg-white px-4 sm:px-6">
+          <button type="button" aria-label="Open navigation" onClick={() => setNav(true)} className="p-1 md:hidden"><Ic n="menu" s={22} /></button>
+          <nav aria-label="Breadcrumb" className="hidden items-center gap-1.5 text-xs text-[#6c7a8f] sm:flex">
+            <span>Seller / Owner</span>
+            {crumb.map((c, i) => (
+              <span key={c} className="flex items-center gap-1.5">
+                <Ic n="chev" s={12} /><span className={i === crumb.length - 1 ? "font-semibold text-[#0f2038]" : ""}>{c}</span>
+              </span>
+            ))}
+          </nav>
+          <form onSubmit={doJump} className="relative ml-auto hidden w-60 md:block">
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"><Ic n="search" s={15} /></span>
+            <input ref={jumpRef} value={jump} onChange={(e) => setJump(e.target.value)} placeholder="Jump to page…" aria-label="Jump to page"
+              className="w-full rounded-lg border border-[#dfe7f1] py-1.5 pl-8 pr-14 text-xs outline-none focus:border-[#0b8579]" />
+            <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-slate-200 px-1 text-[10px] text-slate-400">Ctrl K</kbd>
+          </form>
+          <div className="ml-auto flex items-center gap-3 text-slate-600 md:ml-0">
+            <button type="button" aria-label="Search" className="md:hidden"><Ic n="search" /></button>
+            <span className="relative"><Ic n="chat" /><b className="absolute -right-2 -top-2 rounded-full bg-red-500 px-1 text-[9px] text-white">3</b></span>
+            <span className="relative"><Ic n="bell" /><b className="absolute -right-2 -top-2 rounded-full bg-red-500 px-1 text-[9px] text-white">2</b></span>
+            <Ic n="sun" />
+            <div className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-400 text-[11px] font-bold text-white">RS</span>
+              <div className="hidden text-xs leading-tight sm:block"><p className="font-semibold text-[#0f2038]">Ruwan</p><p className="text-[#6c7a8f]">Seller</p></div>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-[1200px] px-4 py-6 sm:px-6">
+          {/* ───── Dashboard ───── */}
+          {view === "dashboard" && (
+            <>
+              <div className="mb-5 flex items-start justify-between gap-3">
+                <div>
+                  <h1 className="text-2xl font-bold text-[#0f2038]">Good morning, Ruwan</h1>
+                  <p className="mt-1 text-sm text-[#6c7a8f]">Your listings, enquiries and performance at a glance.</p>
+                </div>
+                <button type="button" onClick={newListing} className="inline-flex items-center gap-2 rounded-lg bg-[#0b8579] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#096d63]">
+                  <Ic n="plus" s={16} />Add property
+                </button>
+              </div>
+
+              <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <Stat label="Active listings" value={String(live)} icon="home" delta="12%" note={`${count("Pending")} pending approval`} color="#d98a3d" />
+                <Stat label="Views (30 days)" value="16,159" icon="eye" delta="18%" color="#3b6fb6" />
+                <Stat label="Enquiries" value="7" icon="chat" delta="9%" note="2 new" color="#0b8579" />
+                <Stat label="Saved by buyers" value="295" icon="heart" delta="3%" up={false} color="#d4577a" />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
+                <div className="space-y-4">
+                  <section className="rounded-2xl border border-[#e3e9f0] bg-white p-4">
+                    <div className="flex items-start justify-between">
+                      <div><h2 className="text-sm font-bold">Listing views</h2><p className="text-xs text-[#6c7a8f]">Last 14 days</p></div>
+                      <button type="button" className="text-xs font-semibold text-[#0b8579]">Full analytics →</button>
+                    </div>
+                    <svg viewBox="0 0 560 220" className="mt-3 w-full" role="img" aria-label="Listing views over the last 14 days">
+                      {[0, 25, 50, 75, 100].map((v) => (
+                        <g key={v}>
+                          <line x1="32" x2="550" y1={190 - v * 1.7} y2={190 - v * 1.7} stroke="#edf0f5" />
+                          <text x="24" y={194 - v * 1.7} fontSize="10" textAnchor="end" fill="#94a3b8">{v}</text>
+                        </g>
+                      ))}
+                      {(() => {
+                        const pts = views14.map((v, i) => [32 + (i / 13) * 518, 190 - v * 1.7]);
+                        const line = pts.map((p) => p.join(",")).join(" ");
+                        return (
+                          <>
+                            <polygon points={`32,190 ${line} 550,190`} fill="#cbd5e1" opacity="0.4" />
+                            <polyline points={line} fill="none" stroke="#d98a3d" strokeWidth="2" />
+                            {pts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="2.5" fill="#fff" stroke="#d98a3d" />)}
+                          </>
+                        );
+                      })()}
+                      {[0, 2, 4, 6, 8, 10, 12].map((i) => (
+                        <text key={i} x={32 + (i / 13) * 518} y="208" fontSize="10" textAnchor="middle" fill="#94a3b8">{3 + i} Oct</text>
+                      ))}
+                    </svg>
+                  </section>
+
+                  <section className="rounded-2xl border border-[#e3e9f0] bg-white p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <h2 className="text-sm font-bold">Top performing listings</h2>
+                      <button type="button" onClick={() => go("listings")} className="text-xs font-semibold text-[#0b8579]">All listings →</button>
+                    </div>
+                    {top.map((i) => (
+                      <div key={i.id} className="flex items-center gap-3 border-t border-[#edf0f5] py-2.5 first:border-0">
+                        <span className="flex h-9 w-12 items-center justify-center rounded-md bg-[#e7f5f3] text-[#0b8579]"><Ic n="home" /></span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold">{i.title}</p>
+                          <p className="truncate text-xs text-[#6c7a8f]">{i.location} · {i.type}</p>
+                        </div>
+                        <div className="text-right text-xs"><p className="font-bold">{fmt(i.price)}</p><p className="text-[#6c7a8f]">{i.views.toLocaleString()} views · {i.enquiries} enq.</p></div>
+                      </div>
+                    ))}
+                  </section>
+                </div>
+
+                <div className="space-y-4">
+                  <section className="rounded-2xl border border-[#e3e9f0] bg-white p-4">
+                    <h2 className="mb-2 text-sm font-bold">To do</h2>
+                    {[
+                      ["check", "Verify your property deeds", "Verified listings get up to 3× more enquiries."],
+                      ["chat", "Reply to 2 new enquiries", "Fast replies improve your ranking."],
+                      ["clock", `${count("Pending")} listing awaiting approval`, "Typically reviewed within 1–2 working days."],
+                    ].map(([ic, t, d]) => (
+                      <div key={t} className="flex items-start gap-3 border-t border-[#edf0f5] py-3 first:border-0">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-500"><Ic n={ic} s={16} /></span>
+                        <div className="min-w-0 flex-1"><p className="text-xs font-semibold">{t}</p><p className="text-[11px] text-[#6c7a8f]">{d}</p></div>
+                        <Ic n="chev" s={14} c="mt-2 text-slate-400" />
+                      </div>
+                    ))}
+                  </section>
+                  <section className="rounded-2xl border border-[#e3e9f0] bg-white p-4">
+                    <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-bold">Latest enquiries</h2><button type="button" className="text-xs font-semibold text-[#0b8579]">Inbox →</button></div>
+                    {[
+                      ["AP", "Amaya Perera", "Hi, is this still available? I’d like to arr…", "New", "bg-amber-50 text-amber-700", "bg-violet-500"],
+                      ["AP", "Amaya Perera", "Could you share the survey p…", "Responded", "bg-[#e7f5f3] text-[#0b8579]", "bg-violet-500"],
+                      ["SR", "Sanduni Rahman", "Hi, is this still available? I…", "Visit scheduled", "bg-slate-100 text-slate-600", "bg-teal-600"],
+                    ].map(([a, n, m, s, sc, bg], i) => (
+                      <div key={i} className="flex items-center gap-2.5 border-t border-[#edf0f5] py-2.5 first:border-0">
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${bg}`}>{a}</span>
+                        <div className="min-w-0 flex-1"><p className="text-xs font-semibold">{n}</p><p className="truncate text-[11px] text-[#6c7a8f]">{m}</p></div>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${sc}`}>{s}</span>
+                      </div>
+                    ))}
+                  </section>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* ───── My listings ───── */}
+          {view === "listings" && (
+            <>
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <h1 className="text-xl font-bold text-[#0f2038]">My listings</h1>
+                  <p className="mt-0.5 text-xs text-[#6c7a8f]">{items.length} properties · {live} live</p>
+                </div>
+                <button type="button" onClick={newListing} className="inline-flex items-center gap-2 rounded-lg bg-[#0b8579] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#096d63]">
+                  <Ic n="plus" s={16} />Add property
+                </button>
+              </div>
+              <section className="rounded-2xl border border-[#e3e9f0] bg-white">
+                <div role="tablist" className="flex gap-5 overflow-x-auto border-b border-[#e3e9f0] px-4">
+                  {TABS.map((t) => (
+                    <button key={t} role="tab" aria-selected={tab === t} type="button" onClick={() => setTab(t)}
+                      className={`-mb-px whitespace-nowrap border-b-2 py-3 text-xs ${tab === t ? "border-[#0b8579] font-semibold text-[#0f2038]" : "border-transparent text-[#6c7a8f]"}`}>
+                      {t} <span className="ml-1 rounded bg-slate-100 px-1.5 text-[10px]">{count(t)}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between gap-3 p-3">
+                  <div className="relative w-full max-w-[260px]">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"><Ic n="search" s={15} /></span>
+                    <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search listings…" aria-label="Search listings"
+                      className="w-full rounded-lg border border-[#dfe7f1] py-2 pl-8 pr-3 text-xs outline-none focus:border-[#0b8579]" />
+                  </div>
+                  <button type="button" onClick={() => {
+                    const csv = ["Title,Type,Price,Status,Views,Listed", ...rows.map((r) => `"${r.title}",${r.type},${r.price},${r.status},${r.views},${r.listed}`)].join("\n");
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                    a.download = "listings.csv"; a.click();
+                  }} className="rounded-lg border border-[#dfe7f1] px-3 py-2 text-xs font-semibold hover:bg-slate-50">Export CSV</button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left text-xs">
+                    <thead>
+                      <tr className="bg-[#f7f9fc] text-[10px] font-bold uppercase tracking-wide text-[#6c7a8f]">
+                        <th className="w-10 px-4 py-3"><input type="checkbox" aria-label="Select all"
+                          checked={rows.length > 0 && sel.length === rows.length}
+                          onChange={(e) => setSel(e.target.checked ? rows.map((r) => r.id) : [])} /></th>
+                        <th className="px-3 py-3">Listing</th><th className="px-3 py-3">Type</th><th className="px-3 py-3">Price</th>
+                        <th className="px-3 py-3">Status</th><th className="px-3 py-3">Views</th><th className="px-3 py-3">Listed</th><th className="w-10" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((r) => (
+                        <tr key={r.id} className="border-t border-[#edf0f5] hover:bg-[#fbfcfe]">
+                          <td className="px-4 py-3"><input type="checkbox" aria-label={`Select ${r.title}`} checked={sel.includes(r.id)}
+                            onChange={(e) => setSel((s) => (e.target.checked ? [...s, r.id] : s.filter((x) => x !== r.id)))} /></td>
+                          <td className="px-3 py-3">
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-9 w-12 shrink-0 items-center justify-center rounded-md bg-[#e7f5f3] text-[#0b8579]"><Ic n="home" /></span>
+                              <div><p className="font-semibold text-[#0f2038]">{r.title}</p><p className="text-[11px] text-[#6c7a8f]">{r.location}</p></div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-3 text-slate-600">{r.type}{r.mode === "Rent out" && <><br />· Rent</>}</td>
+                          <td className="whitespace-nowrap px-3 py-3 font-semibold">{fmt(r.price)}</td>
+                          <td className="px-3 py-3"><StatusChip s={r.status} /></td>
+                          <td className="px-3 py-3 text-slate-600">{r.views.toLocaleString()}</td>
+                          <td className="whitespace-nowrap px-3 py-3 text-slate-600">{r.listed}</td>
+                          <td className="relative px-3 py-3">
+                            <button type="button" aria-label={`Actions for ${r.title}`} onClick={(e) => { e.stopPropagation(); setMenu(menu === r.id ? null : r.id); }}
+                              className="rounded p-1 text-[#6c7a8f] hover:bg-slate-100"><Ic n="dots" /></button>
+                            {menu === r.id && (
+                              <div onClick={(e) => e.stopPropagation()} className="absolute right-3 top-9 z-10 w-36 rounded-lg border border-[#e3e9f0] bg-white p-1 shadow-lg">
+                                <button type="button" onClick={() => edit(r)} className="block w-full rounded px-3 py-1.5 text-left hover:bg-slate-50">Edit</button>
+                                {r.status !== "Sold" && <button type="button" onClick={() => { setStatus(r.id, "Sold"); setMenu(null); }} className="block w-full rounded px-3 py-1.5 text-left hover:bg-slate-50">Mark as sold</button>}
+                                <button type="button" onClick={() => { remove(r); setMenu(null); }} className="block w-full rounded px-3 py-1.5 text-left text-red-600 hover:bg-red-50">Delete</button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {rows.length === 0 && (
+                  <div className="px-5 py-12 text-center">
+                    <p className="text-sm font-semibold">No listings match</p>
+                    <p className="mt-1 text-xs text-[#6c7a8f]">Try another tab or search term, or add a property.</p>
+                  </div>
+                )}
+                <p className="border-t border-[#edf0f5] px-4 py-3 text-[11px] text-[#6c7a8f]">Showing {rows.length ? `1–${rows.length}` : 0} of {rows.length}</p>
+              </section>
+            </>
+          )}
+
+          {/* ───── Add / Edit property wizard ───── */}
+          {view === "form" && (
+            <div className="mx-auto max-w-[900px]">
+              <button type="button" onClick={() => go("listings")} className="mb-3 inline-flex items-center gap-1.5 text-xs text-[#6c7a8f] hover:text-slate-800"><Ic n="back" s={14} />My listings</button>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-[#0f2038]">{editing ? "Edit property" : "Add a property"}</h1>
+                {editing && <StatusChip s={editing.status} />}
+              </div>
+              <p className="mb-4 mt-1 text-xs text-[#6c7a8f]">{editing ? editing.title : "List land or property in five quick steps."}</p>
+
+              <ol className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {STEPS.map((s, i) => (
+                  <li key={s}>
+                    <button type="button" onClick={() => i <= step && setStep(i)}
+                      className={`flex w-full items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] ${i === step ? "border-[#0b8579] bg-[#e7f5f3] font-semibold" : "border-[#e3e9f0] bg-white text-[#6c7a8f]"}`}>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${i === step ? "bg-[#0b8579] text-white" : i < step ? "bg-[#ddeeec] text-[#096d63]" : "bg-slate-100"}`}>{i < step ? "✓" : i + 1}</span>
+                      <span className="truncate">{s}</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+
+              <section className="space-y-5">
+                {step === 0 && (
+                  <>
+                    <Field label="What would you like to do?" req>
+                      <div className="grid grid-cols-2 gap-3">
+                        {([["Sell", "Sell this property", "tag"], ["Rent out", "Find a tenant", "key"]] as const).map(([m, d, ic]) => (
+                          <button key={m} type="button" onClick={() => setForm({ ...form, mode: m })} aria-pressed={form.mode === m}
+                            className={`flex items-center gap-3 rounded-xl border p-4 text-left ${form.mode === m ? "border-[#0b8579] bg-[#e7f5f3]" : "border-[#e3e9f0] bg-white"}`}>
+                            <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${form.mode === m ? "bg-[#0b8579] text-white" : "bg-slate-100 text-[#6c7a8f]"}`}><Ic n={ic} s={16} /></span>
+                            <span><span className="block text-sm font-semibold">{m}</span><span className="text-[11px] text-[#6c7a8f]">{d}</span></span>
+                          </button>
+                        ))}
+                      </div>
+                    </Field>
+                    <Field label="Property type" req>
+                      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                        {TYPES.map((t) => (
+                          <button key={t} type="button" onClick={() => setForm({ ...form, type: t })} aria-pressed={form.type === t}
+                            className={`flex flex-col items-start gap-2 rounded-xl border p-3 text-xs font-semibold ${form.type === t ? "border-[#0b8579] bg-[#e7f5f3]" : "border-[#e3e9f0] bg-white"}`}>
+                            <span className={`flex h-7 w-7 items-center justify-center rounded-md ${form.type === t ? "bg-[#0b8579] text-white" : "bg-slate-100 text-[#6c7a8f]"}`}><Ic n="home" s={14} /></span>{t}
+                          </button>
+                        ))}
+                      </div>
+                    </Field>
+                    <Field label="Listing title" req hint="Mention the type, size and what makes it special.">
+                      <input className={inp} maxLength={120} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. 20 perch residential land near the beach — Habaraduwa" />
+                    </Field>
+                    <div>
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <label htmlFor="desc" className="text-xs font-semibold">Description <span className="text-red-500">*</span></label>
+                        <button type="button" onClick={draftWithAI} className="inline-flex items-center gap-1 rounded-md bg-[#e7f5f3] px-2 py-1 text-[11px] font-semibold text-[#0b8579]"><Ic n="spark" s={12} />Draft with AI</button>
+                      </div>
+                      <textarea id="desc" className={`${inp} min-h-[110px] resize-y`} maxLength={2000} value={form.description}
+                        onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the property, surroundings, access and any restrictions…" />
+                    </div>
+                  </>
+                )}
+                {step === 1 && (
+                  <>
+                    <Field label="Town / district" req><input className={inp} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Habaraduwa, Galle" /></Field>
+                    <Field label="Address or landmark"><input className={inp} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Street, nearest junction or landmark" /></Field>
+                    <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-[#cfd8e3] bg-white text-xs text-[#6c7a8f]">
+                      Map boundary drawing needs the map component — connect it here.
+                    </div>
+                  </>
+                )}
+                {step === 2 && (
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <Field label={form.mode === "Sell" ? "Asking price (Rs)" : "Monthly rent (Rs)"} req>
+                      <input type="number" min="1" className={inp} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="e.g. 27000000" />
+                    </Field>
+                    <Field label={form.type === "Land" ? "Land extent" : "Floor area"}>
+                      <input className={inp} value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} placeholder={form.type === "Land" ? "e.g. 20 perches" : "e.g. 2,100 sq ft"} />
+                    </Field>
+                    {form.type !== "Land" && (
+                      <>
+                        <Field label="Bedrooms"><input type="number" min="0" className={inp} value={form.bedrooms} onChange={(e) => setForm({ ...form, bedrooms: e.target.value })} /></Field>
+                        <Field label="Bathrooms"><input type="number" min="0" className={inp} value={form.bathrooms} onChange={(e) => setForm({ ...form, bathrooms: e.target.value })} /></Field>
+                      </>
+                    )}
+                  </div>
+                )}
+                {step === 3 && (
+                  <Field label="Photos & documents" hint="Add photos, deeds and survey plans. Files stay on this device until a backend is connected.">
+                    <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-[#cfd8e3] bg-white px-4 py-8 text-xs text-[#6c7a8f] hover:bg-slate-50">
+                      <Ic n="upload" s={22} />Choose files
+                      <input type="file" multiple className="sr-only" onChange={(e) => setForm({ ...form, files: [...form.files, ...Array.from(e.target.files ?? []).map((f) => f.name)] })} />
+                    </label>
+                    {form.files.length > 0 && <ul className="mt-3 space-y-1 text-xs">{form.files.map((f, i) => <li key={i} className="rounded-md bg-white px-3 py-1.5 ring-1 ring-[#e3e9f0]">{f}</li>)}</ul>}
+                  </Field>
+                )}
+                {step === 4 && (
+                  <div className="rounded-xl border border-[#e3e9f0] bg-white p-4 text-sm">
+                    {([["Goal", form.mode], ["Type", form.type], ["Title", form.title], ["Location", form.location], ["Price", form.price ? fmt(Number(form.price)) : "—"], ["Size", form.size || "—"], ["Files", String(form.files.length)]] as const).map(([k, v]) => (
+                      <div key={k} className="flex justify-between gap-4 border-b border-[#edf0f5] py-2 last:border-0"><span className="text-[#6c7a8f]">{k}</span><span className="text-right font-semibold">{v}</span></div>
+                    ))}
+                  </div>
+                )}
+
+                {err && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{err}</p>}
+
+                <div className="flex flex-wrap justify-end gap-3">
+                  {step > 0 && <button type="button" onClick={() => setStep(step - 1)} className="rounded-lg border border-[#dfe7f1] bg-white px-5 py-2.5 text-sm font-semibold">Back</button>}
+                  {step === 4 ? (
+                    <>
+                      <button type="button" onClick={() => save("Draft")} className="rounded-lg border border-[#dfe7f1] bg-white px-5 py-2.5 text-sm font-semibold">Save as draft</button>
+                      <button type="button" onClick={() => save("Pending")} className="rounded-lg bg-[#0b8579] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#096d63]">Submit for approval</button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-lg bg-[#0b8579] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#096d63]">Continue<Ic n="right" s={15} /></button>
+                  )}
+                </div>
+              </section>
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
 }
