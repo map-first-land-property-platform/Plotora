@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import Image from "next/image";
+import { PropertyGallery } from "@/components/property/property-gallery";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
@@ -50,10 +50,6 @@ export function PropertyDetailsView({
     rentalDetails,
   } = property;
 
-  // Sort a copy so rendering does not change the supplied property data.
-  const coverImage = [...property.images].sort(
-    (first, second) => first.order - second.order,
-  )[0];
 
   const features = [...new Set(property.features)];
 
@@ -82,16 +78,11 @@ export function PropertyDetailsView({
           </ol>
         </nav>
 
-        <div className="relative aspect-video overflow-hidden rounded-2xl bg-slate-200 sm:aspect-[16/7]">
-          <Image
-            src={coverImage?.url || "/mock/property-placeholder.svg"}
-            alt={coverImage?.alt || "Property image placeholder"}
-            fill
-            sizes="(min-width: 1152px) 1104px, 100vw"
-            loading="eager"
-            className="object-cover"
-          />
-        </div>
+        <PropertyGallery
+             key={property.id}
+            images={property.images}
+            title={property.title}
+        />
 
         <header className="flex flex-col gap-5 lg:flex-row lg:justify-between">
           <div className="space-y-3">
