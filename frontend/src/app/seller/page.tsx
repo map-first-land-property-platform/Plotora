@@ -1,19 +1,35 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { Inter } from "next/font/google";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  createListing,
+  deleteListing,
+  DELETABLE_STATUSES,
+  EDITABLE_STATUSES,
+  getMyListings,
+  SellerApiError,
+  submitForReview,
+  updateListing,
+  type ListingStatus,
+  type PropertyCategory,
+  type SellerProperty,
+  type SellerPropertyRequest,
+} from "@/lib/api/sellerProperties";
 
 const inter = Inter({ subsets: ["latin"], display: "swap" });
 
 /* ───────── Types & data ───────── */
 type Status = "Approved" | "Pending" | "Draft" | "Rejected" | "Sold";
-type PType = "Land" | "House" | "Apartment" | "Commercial" | "Villa";
+type PType = "Land" | "House" | "Apartment" | "Commercial";
 type Mode = "Sell" | "Rent out";
 type View = "dashboard" | "listings" | "form";
 
+/** UI view of a listing, mapped from the API's SellerProperty. */
 interface Listing {
-  id: number;
+  id: string;
   title: string;
   location: string;
   type: PType;
@@ -23,39 +39,52 @@ interface Listing {
   enquiries: number;
   listed: string;
   status: Status;
+  apiStatus: ListingStatus;
   description: string;
-  address: string;
-  size: string;
-  bedrooms: string;
-  bathrooms: string;
-  files: string[];
+  source: SellerProperty;
 }
 
-const L = (
-  id: number, title: string, location: string, type: PType, mode: Mode,
-  price: number, views: number, enquiries: number, listed: string, status: Status,
-  description = ""
-): Listing => ({
-  id, title, location, type, mode, price, views, enquiries, listed, status,
-  description, address: "", size: "", bedrooms: "", bathrooms: "", files: [],
-});
+const STATUS_LABEL: Record<ListingStatus, Status> = {
+  PUBLISHED: "Approved", PENDING_REVIEW: "Pending", DRAFT: "Draft", REJECTED: "Rejected", SOLD: "Sold",
+};
+const TYPE_LABEL: Record<PropertyCategory, PType> = {
+  LAND: "Land", HOUSE: "House", APARTMENT: "Apartment", COMMERCIAL: "Commercial",
+};
+const TYPE_CODE: Record<PType, PropertyCategory> = {
+  Land: "LAND", House: "HOUSE", Apartment: "APARTMENT", Commercial: "COMMERCIAL",
+};
 
-const seed: Listing[] = [
-  L(1, "16 perch residential block in Negombo Beach", "Negombo Beach, Negombo", "Land", "Sell", 31500000, 2050, 0, "16 Aug 2026", "Draft"),
-  L(2, "Beachfront land — 20 perches, Habaraduwa", "Habaraduwa, Galle", "Land", "Sell", 27000000, 2366, 9, "21 Aug 2026", "Approved",
-    "A 20-perch beachfront block in Habaraduwa, Galle, with 24 ft road access and utilities close by. A short walk from the sea. The deed is freehold and a recent survey plan is available on request. Suitable for a family home, holiday property or long-term investment."),
-  L(3, "3-bedroom family house in Kundasale", "Kundasale, Kandy", "House", "Rent out", 185000, 1226, 2, "31 Aug 2026", "Pending"),
-  L(4, "Beachfront land — 80 perches, Tangalle", "Tangalle, Hambantota", "Land", "Sell", 24500000, 963, 1, "10 Sept 2026", "Rejected"),
-  L(5, "3-bedroom apartment in Battaramulla", "Battaramulla, Colombo", "Apartment", "Sell", 68000000, 1809, 9, "15 Sept 2026", "Approved"),
-  L(6, "Modern 4-bedroom home with garden — Unawatuna", "Unawatuna, Galle", "House", "Sell", 63500000, 2623, 9, "18 Sept 2026", "Approved"),
-  L(7, "Modern 4-bedroom home with garden — Kurunegala Town", "Kurunegala Town, Kurunegala", "House", "Sell", 61500000, 2682, 4, "24 Sept 2026", "Sold"),
-  L(8, "40 perch freehold block in Weligama", "Weligama, Matara", "Land", "Sell", 23500000, 2440, 9, "10d ago", "Approved"),
-];
+const listedFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Colombo" });
 
-const TYPES: PType[] = ["Land", "House", "Apartment", "Commercial", "Villa"];
+function toListing(p: SellerProperty): Listing {
+  return {
+    id: p.id,
+    title: p.title,
+    location: [p.address, p.district].filter(Boolean).join(", "),
+    type: TYPE_LABEL[p.category],
+    mode: p.listingType === "RENT" ? "Rent out" : "Sell",
+    price: Number(p.price),
+    views: 0, // view tracking is not part of Sprint 1
+    enquiries: 0, // enquiries come with the Buyer module
+    listed: listedFmt.format(new Date(p.createdAt)),
+    status: STATUS_LABEL[p.status],
+    apiStatus: p.status,
+    description: p.description ?? "",
+    source: p,
+  };
+}
+
+const TYPES: PType[] = ["Land", "House", "Apartment", "Commercial"];
 const TABS = ["All", "Approved", "Pending", "Draft", "Rejected", "Sold"] as const;
-const STEPS = ["Basics", "Location & boundary", "Details", "Photos & documents", "Review"];
+const STEPS = ["Basics", "Location", "Details", "Photos & documents", "Review"];
 const views14 = [56, 52, 48, 44, 45, 47, 50, 46, 50, 54, 54, 56, 60, 58];
+
+const DISTRICTS = [
+  "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo", "Galle", "Gampaha", "Hambantota",
+  "Jaffna", "Kalutara", "Kandy", "Kegalle", "Kilinochchi", "Kurunegala", "Mannar", "Matale",
+  "Matara", "Monaragala", "Mullaitivu", "Nuwara Eliya", "Polonnaruwa", "Puttalam", "Ratnapura",
+  "Trincomalee", "Vavuniya",
+];
 
 const fmt = (n: number) => {
   if (n >= 1_000_000) return `Rs ${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")} M`;
@@ -64,9 +93,79 @@ const fmt = (n: number) => {
 
 const emptyForm = {
   mode: "Sell" as Mode, type: "Land" as PType, title: "", description: "",
-  location: "", address: "", price: "", size: "", bedrooms: "", bathrooms: "", files: [] as string[],
+  district: "", address: "", latitude: "", longitude: "",
+  price: "", extentPerches: "", floorAreaSqft: "", bedrooms: "", bathrooms: "", files: [] as string[],
 };
 type Form = typeof emptyForm;
+
+const hasRooms = (t: PType) => t === "House" || t === "Apartment";
+const numOrNull = (v: string) => (v.trim() === "" ? null : Number(v));
+
+/** Builds the API request from the form, sending only fields relevant to the category. */
+function toRequest(f: Form): SellerPropertyRequest {
+  const rooms = hasRooms(f.type);
+  return {
+    title: f.title.trim(),
+    description: f.description.trim() || null,
+    category: TYPE_CODE[f.type],
+    listingType: f.mode === "Sell" ? "SALE" : "RENT",
+    price: Number(f.price),
+    address: f.address.trim(),
+    district: f.district,
+    latitude: Number(f.latitude),
+    longitude: Number(f.longitude),
+    extentPerches: f.type === "Apartment" ? null : numOrNull(f.extentPerches),
+    floorAreaSqft: f.type === "Land" ? null : numOrNull(f.floorAreaSqft),
+    bedrooms: rooms ? numOrNull(f.bedrooms) : null,
+    bathrooms: rooms ? numOrNull(f.bathrooms) : null,
+  };
+}
+
+function toForm(p: SellerProperty): Form {
+  const s = (v: number | null | undefined) => (v === null || v === undefined ? "" : String(v));
+  return {
+    mode: p.listingType === "RENT" ? "Rent out" : "Sell",
+    type: TYPE_LABEL[p.category],
+    title: p.title,
+    description: p.description ?? "",
+    district: p.district,
+    address: p.address,
+    latitude: s(p.latitude),
+    longitude: s(p.longitude),
+    price: s(p.price),
+    extentPerches: s(p.extentPerches),
+    floorAreaSqft: s(p.floorAreaSqft),
+    bedrooms: s(p.bedrooms),
+    bathrooms: s(p.bathrooms),
+    files: [],
+  };
+}
+
+/** Client-side checks per wizard step; the backend validates again. */
+function stepError(step: number, f: Form): string {
+  if (step === 0) {
+    if (f.title.trim().length < 10) return "Add a listing title of at least 10 characters.";
+    if (!f.description.trim()) return "Add a description to continue.";
+  }
+  if (step === 1) {
+    if (!f.district) return "Choose the district.";
+    if (!f.address.trim()) return "Add the address or nearest landmark.";
+    const lat = Number(f.latitude), lng = Number(f.longitude);
+    if (!f.latitude || !f.longitude || Number.isNaN(lat) || Number.isNaN(lng)) return "Add the latitude and longitude of the property.";
+    if (lat < 5.8 || lat > 10 || lng < 79.5 || lng > 82) return "The location must be inside Sri Lanka (latitude 5.8–10, longitude 79.5–82).";
+  }
+  if (step === 2) {
+    if (!(Number(f.price) > 0)) return "Enter a valid price to continue.";
+    if (f.type === "Land" && !(Number(f.extentPerches) > 0)) return "Enter the land extent in perches.";
+    if (hasRooms(f.type)) {
+      if (f.bedrooms === "" || f.bathrooms === "") return "Enter the number of bedrooms and bathrooms.";
+      if (!(Number(f.floorAreaSqft) > 0)) return "Enter the floor area in square feet.";
+    }
+    if (f.type === "Commercial" && !(Number(f.floorAreaSqft) > 0) && !(Number(f.extentPerches) > 0))
+      return "Enter a floor area or a land extent.";
+  }
+  return "";
+}
 
 /* ───────── Icons ───────── */
 const P: Record<string, string> = {
@@ -164,15 +263,32 @@ const Field = ({ label, req, hint, children }: { label: string; req?: boolean; h
 const inp = "w-full rounded-lg border border-[#dfe7f1] bg-white px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-[#0b8579] focus:ring-2 focus:ring-[#0b8579]/10";
 
 /* ───────── Page ───────── */
+function NavBtn({ icon, label, on, onClick, badge: b }: { icon: string; label: string; on?: boolean; onClick: () => void; badge?: number }) {
+  return (
+    <button type="button" onClick={onClick}
+      className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${on ? "bg-[#e7f5f3] font-semibold text-[#0b8579]" : "text-slate-600 hover:bg-slate-50"}`}>
+      <Ic n={icon} s={17} />{label}
+      {b ? <span className="ml-auto rounded-full bg-[#ddeeec] px-1.5 text-[11px] font-semibold text-[#096d63]">{b}</span> : null}
+    </button>
+  );
+}
+
+function Group({ t }: { t: string }) {
+  return <p className="mb-1.5 mt-5 px-3 text-[10px] font-bold tracking-[0.12em] text-slate-400">{t}</p>;
+}
+
 export default function SellerPage() {
-  const [items, setItems] = useState<Listing[]>(seed);
+  const [items, setItems] = useState<Listing[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [saving, setSaving] = useState(false);
   const [view, setView] = useState<View>("dashboard");
   const [tab, setTab] = useState<(typeof TABS)[number]>("All");
   const [q, setQ] = useState("");
-  const [sel, setSel] = useState<number[]>([]);
-  const [menu, setMenu] = useState<number | null>(null);
+  const [sel, setSel] = useState<string[]>([]);
+  const [menu, setMenu] = useState<string | null>(null);
   const [nav, setNav] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<Form>(emptyForm);
   const [err, setErr] = useState("");
@@ -187,6 +303,29 @@ export default function SellerPage() {
     window.addEventListener("keydown", k);
     window.addEventListener("click", c);
     return () => { window.removeEventListener("keydown", k); window.removeEventListener("click", c); };
+  }, []);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError("");
+    try {
+      setItems((await getMyListings()).map(toListing));
+    } catch (e) {
+      setLoadError(e instanceof SellerApiError ? e.message : "Could not load your listings.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    getMyListings()
+      .then((data) => { if (active) setItems(data.map(toListing)); })
+      .catch((e: unknown) => {
+        if (active) setLoadError(e instanceof SellerApiError ? e.message : "Could not load your listings.");
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, []);
 
   const count = (s: string) => (s === "All" ? items.length : items.filter((i) => i.status === s).length);
@@ -206,36 +345,45 @@ export default function SellerPage() {
   function newListing() { setEditId(null); setForm(emptyForm); setStep(0); setErr(""); setView("form"); setNav(false); }
   function edit(i: Listing) {
     setEditId(i.id);
-    setForm({ mode: i.mode, type: i.type, title: i.title, description: i.description, location: i.location,
-      address: i.address, price: String(i.price), size: i.size, bedrooms: i.bedrooms, bathrooms: i.bathrooms, files: i.files });
+    setForm(toForm(i.source));
     setStep(0); setErr(""); setView("form");
   }
-  function remove(i: Listing) {
-    if (window.confirm(`Delete "${i.title}"? This can't be undone.`)) setItems((c) => c.filter((x) => x.id !== i.id));
+  async function remove(i: Listing) {
+    if (!window.confirm(`Delete "${i.title}"? This can't be undone.`)) return;
+    try {
+      await deleteListing(i.id);
+      setItems((c) => c.filter((x) => x.id !== i.id));
+    } catch (e) {
+      window.alert(e instanceof SellerApiError ? e.message : "Could not delete the listing.");
+    }
   }
-  function setStatus(id: number, status: Status) { setItems((c) => c.map((x) => (x.id === id ? { ...x, status } : x))); }
 
   function next() {
-    if (step === 0 && (!form.title.trim() || !form.description.trim())) {
-      setErr("Add a listing title and description to continue."); return;
-    }
-    if (step === 1 && !form.location.trim()) { setErr("Add the town or district to continue."); return; }
-    if (step === 2 && !(Number(form.price) > 0)) { setErr("Enter a valid asking price to continue."); return; }
+    const e = stepError(step, form);
+    if (e) { setErr(e); return; }
     setErr(""); setStep((s) => Math.min(4, s + 1));
   }
-  function save(status: Status) {
-    const data = { mode: form.mode, type: form.type, title: form.title.trim(), description: form.description.trim(),
-      location: form.location.trim(), address: form.address.trim(), price: Number(form.price) || 0,
-      size: form.size, bedrooms: form.bedrooms, bathrooms: form.bathrooms, files: form.files };
-    if (editId !== null) {
-      setItems((c) => c.map((x) => (x.id === editId ? { ...x, ...data, status: status === "Draft" ? x.status : status } : x)));
-    } else {
-      setItems((c) => [{ ...L(Date.now(), "", "", "Land", "Sell", 0, 0, 0, "Today", status), ...data }, ...c]);
+  async function save(submit: boolean) {
+    for (let i = 0; i < 3; i++) {
+      const e = stepError(i, form);
+      if (e) { setErr(e); setStep(i); return; }
     }
-    setView("listings"); setEditId(null);
+    setSaving(true); setErr("");
+    try {
+      const data = toRequest(form);
+      let saved = editId !== null ? await updateListing(editId, data) : await createListing(data);
+      if (submit) saved = await submitForReview(saved.id);
+      const row = toListing(saved);
+      setItems((c) => (editId !== null ? c.map((x) => (x.id === editId ? row : x)) : [row, ...c]));
+      setView("listings"); setEditId(null);
+    } catch (e) {
+      setErr(e instanceof SellerApiError ? e.message : "Could not save the listing. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
   function draftWithAI() {
-    const t = `${form.type === "Land" ? "Land" : form.type} for ${form.mode === "Sell" ? "sale" : "rent"}${form.location ? ` in ${form.location}` : ""}. Describe access roads, utilities, nearby facilities and deed or survey details.`;
+    const t = `${form.type} for ${form.mode === "Sell" ? "sale" : "rent"}${form.district ? ` in ${form.district}` : ""}. Describe access roads, utilities, nearby facilities and deed or survey details.`;
     setForm({ ...form, description: form.description || t });
   }
   function doJump(e: React.FormEvent) {
@@ -250,23 +398,15 @@ export default function SellerPage() {
   const crumb = view === "form" ? (editing ? ["My Listings", "Edit"] : ["My Listings", "Add Property"])
     : [view === "dashboard" ? "Dashboard" : "My Listings"];
 
-  const NavBtn = ({ icon, label, on, onClick, badge: b }: { icon: string; label: string; on?: boolean; onClick: () => void; badge?: number }) => (
-    <button type="button" onClick={onClick}
-      className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${on ? "bg-[#e7f5f3] font-semibold text-[#0b8579]" : "text-slate-600 hover:bg-slate-50"}`}>
-      <Ic n={icon} s={17} />{label}
-      {b ? <span className="ml-auto rounded-full bg-[#ddeeec] px-1.5 text-[11px] font-semibold text-[#096d63]">{b}</span> : null}
-    </button>
-  );
-  const Group = ({ t }: { t: string }) => <p className="mb-1.5 mt-5 px-3 text-[10px] font-bold tracking-[0.12em] text-slate-400">{t}</p>;
 
   return (
     <div className={`${inter.className} min-h-screen bg-[#f3f6fa] text-[#0f2038] antialiased [&_h1]:tracking-[-0.03em] [&_h2]:tracking-[-0.02em]`}>
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-[220px] flex-col border-r border-[#e3e9f0] bg-white transition-transform md:translate-x-0 ${nav ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-16 items-center px-4">
-          <a href="/" aria-label="Plotora home">
+          <Link href="/" aria-label="Plotora home">
             <Image src="/plotora-logo.png" alt="Plotora" width={0} height={0} sizes="140px" unoptimized priority style={{ width: 140, height: "auto" }} />
-          </a>
+          </Link>
           <button type="button" aria-label="Close navigation" onClick={() => setNav(false)} className="ml-auto p-1 md:hidden"><Ic n="close" /></button>
         </div>
         <div className="mx-3 mb-2 flex items-center gap-2.5 rounded-xl border border-[#e3e9f0] p-2.5">
@@ -435,6 +575,12 @@ export default function SellerPage() {
                   <Ic n="plus" s={16} />Add property
                 </button>
               </div>
+              {loadError && (
+                <div role="alert" className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                  <span>{loadError}</span>
+                  <button type="button" onClick={() => void load()} className="rounded-md border border-red-200 bg-white px-3 py-1.5 font-semibold">Retry</button>
+                </div>
+              )}
               <section className="rounded-2xl border border-[#e3e9f0] bg-white">
                 <div role="tablist" className="flex gap-5 overflow-x-auto border-b border-[#e3e9f0] px-4">
                   {TABS.map((t) => (
@@ -490,9 +636,16 @@ export default function SellerPage() {
                               className="rounded p-1 text-[#6c7a8f] hover:bg-slate-100"><Ic n="dots" /></button>
                             {menu === r.id && (
                               <div onClick={(e) => e.stopPropagation()} className="absolute right-3 top-9 z-10 w-36 rounded-lg border border-[#e3e9f0] bg-white p-1 shadow-lg">
-                                <button type="button" onClick={() => edit(r)} className="block w-full rounded px-3 py-1.5 text-left hover:bg-slate-50">Edit</button>
-                                {r.status !== "Sold" && <button type="button" onClick={() => { setStatus(r.id, "Sold"); setMenu(null); }} className="block w-full rounded px-3 py-1.5 text-left hover:bg-slate-50">Mark as sold</button>}
-                                <button type="button" onClick={() => { remove(r); setMenu(null); }} className="block w-full rounded px-3 py-1.5 text-left text-red-600 hover:bg-red-50">Delete</button>
+                                <p className="px-3 pb-1 pt-0.5 text-[10px] text-[#6c7a8f]">{r.source.referenceCode}</p>
+                                {EDITABLE_STATUSES.includes(r.apiStatus) && (
+                                  <button type="button" onClick={() => edit(r)} className="block w-full rounded px-3 py-1.5 text-left hover:bg-slate-50">Edit</button>
+                                )}
+                                {DELETABLE_STATUSES.includes(r.apiStatus) && (
+                                  <button type="button" onClick={() => { setMenu(null); void remove(r); }} className="block w-full rounded px-3 py-1.5 text-left text-red-600 hover:bg-red-50">Delete</button>
+                                )}
+                                {!EDITABLE_STATUSES.includes(r.apiStatus) && !DELETABLE_STATUSES.includes(r.apiStatus) && (
+                                  <p className="px-3 py-1.5 text-[11px] text-[#6c7a8f]">No actions for {r.status.toLowerCase()} listings</p>
+                                )}
                               </div>
                             )}
                           </td>
@@ -501,10 +654,24 @@ export default function SellerPage() {
                     </tbody>
                   </table>
                 </div>
-                {rows.length === 0 && (
+                {loading && (
+                  <div className="space-y-2 px-4 py-6" aria-label="Loading listings">
+                    {[0, 1, 2].map((k) => <div key={k} className="h-10 animate-pulse rounded-lg bg-slate-100" />)}
+                  </div>
+                )}
+                {!loading && !loadError && rows.length === 0 && (
                   <div className="px-5 py-12 text-center">
-                    <p className="text-sm font-semibold">No listings match</p>
-                    <p className="mt-1 text-xs text-[#6c7a8f]">Try another tab or search term, or add a property.</p>
+                    {items.length === 0 ? (
+                      <>
+                        <p className="text-sm font-semibold">No listings yet</p>
+                        <p className="mt-1 text-xs text-[#6c7a8f]">Add your first property to get started.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm font-semibold">No listings match</p>
+                        <p className="mt-1 text-xs text-[#6c7a8f]">Try another tab or search term, or add a property.</p>
+                      </>
+                    )}
                   </div>
                 )}
                 <p className="border-t border-[#edf0f5] px-4 py-3 text-[11px] text-[#6c7a8f]">Showing {rows.length ? `1–${rows.length}` : 0} of {rows.length}</p>
@@ -573,10 +740,25 @@ export default function SellerPage() {
                 )}
                 {step === 1 && (
                   <>
-                    <Field label="Town / district" req><input className={inp} value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Habaraduwa, Galle" /></Field>
-                    <Field label="Address or landmark"><input className={inp} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Street, nearest junction or landmark" /></Field>
-                    <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-[#cfd8e3] bg-white text-xs text-[#6c7a8f]">
-                      Map boundary drawing needs the map component — connect it here.
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <Field label="District" req>
+                        <select className={inp} value={form.district} onChange={(e) => setForm({ ...form, district: e.target.value })}>
+                          <option value="">Select a district</option>
+                          {DISTRICTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      </Field>
+                      <Field label="Address or landmark" req>
+                        <input className={inp} maxLength={300} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Street, town or nearest junction" />
+                      </Field>
+                      <Field label="Latitude" req hint="In Google Maps, right-click the spot and click the coordinates to copy them.">
+                        <input type="number" step="any" inputMode="decimal" className={inp} value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} placeholder="e.g. 6.0329" />
+                      </Field>
+                      <Field label="Longitude" req>
+                        <input type="number" step="any" inputMode="decimal" className={inp} value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} placeholder="e.g. 80.2168" />
+                      </Field>
+                    </div>
+                    <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-[#cfd8e3] bg-white px-4 text-center text-xs text-[#6c7a8f]">
+                      Picking the location and drawing the boundary on the map will be added with the shared map component.
                     </div>
                   </>
                 )}
@@ -585,19 +767,26 @@ export default function SellerPage() {
                     <Field label={form.mode === "Sell" ? "Asking price (Rs)" : "Monthly rent (Rs)"} req>
                       <input type="number" min="1" className={inp} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="e.g. 27000000" />
                     </Field>
-                    <Field label={form.type === "Land" ? "Land extent" : "Floor area"}>
-                      <input className={inp} value={form.size} onChange={(e) => setForm({ ...form, size: e.target.value })} placeholder={form.type === "Land" ? "e.g. 20 perches" : "e.g. 2,100 sq ft"} />
-                    </Field>
+                    {form.type !== "Apartment" && (
+                      <Field label="Land extent (perches)" req={form.type === "Land"}>
+                        <input type="number" min="0" step="0.01" className={inp} value={form.extentPerches} onChange={(e) => setForm({ ...form, extentPerches: e.target.value })} placeholder="e.g. 20" />
+                      </Field>
+                    )}
                     {form.type !== "Land" && (
+                      <Field label="Floor area (sq ft)" req={hasRooms(form.type)}>
+                        <input type="number" min="0" className={inp} value={form.floorAreaSqft} onChange={(e) => setForm({ ...form, floorAreaSqft: e.target.value })} placeholder="e.g. 2100" />
+                      </Field>
+                    )}
+                    {hasRooms(form.type) && (
                       <>
-                        <Field label="Bedrooms"><input type="number" min="0" className={inp} value={form.bedrooms} onChange={(e) => setForm({ ...form, bedrooms: e.target.value })} /></Field>
-                        <Field label="Bathrooms"><input type="number" min="0" className={inp} value={form.bathrooms} onChange={(e) => setForm({ ...form, bathrooms: e.target.value })} /></Field>
+                        <Field label="Bedrooms" req><input type="number" min="0" className={inp} value={form.bedrooms} onChange={(e) => setForm({ ...form, bedrooms: e.target.value })} /></Field>
+                        <Field label="Bathrooms" req><input type="number" min="0" className={inp} value={form.bathrooms} onChange={(e) => setForm({ ...form, bathrooms: e.target.value })} /></Field>
                       </>
                     )}
                   </div>
                 )}
                 {step === 3 && (
-                  <Field label="Photos & documents" hint="Add photos, deeds and survey plans. Files stay on this device until a backend is connected.">
+                  <Field label="Photos & documents" hint="Photo and document upload will be connected in a later sprint. Selected files are not uploaded yet.">
                     <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-[#cfd8e3] bg-white px-4 py-8 text-xs text-[#6c7a8f] hover:bg-slate-50">
                       <Ic n="upload" s={22} />Choose files
                       <input type="file" multiple className="sr-only" onChange={(e) => setForm({ ...form, files: [...form.files, ...Array.from(e.target.files ?? []).map((f) => f.name)] })} />
@@ -607,7 +796,11 @@ export default function SellerPage() {
                 )}
                 {step === 4 && (
                   <div className="rounded-xl border border-[#e3e9f0] bg-white p-4 text-sm">
-                    {([["Goal", form.mode], ["Type", form.type], ["Title", form.title], ["Location", form.location], ["Price", form.price ? fmt(Number(form.price)) : "—"], ["Size", form.size || "—"], ["Files", String(form.files.length)]] as const).map(([k, v]) => (
+                    {([["Goal", form.mode], ["Type", form.type], ["Title", form.title], ["District", form.district || "—"], ["Address", form.address || "—"],
+                      ["Coordinates", form.latitude && form.longitude ? `${form.latitude}, ${form.longitude}` : "—"],
+                      ["Price", form.price ? fmt(Number(form.price)) : "—"],
+                      ["Size", form.type === "Land" ? (form.extentPerches ? `${form.extentPerches} perches` : "—") : (form.floorAreaSqft ? `${form.floorAreaSqft} sq ft` : "—")],
+                      ...(hasRooms(form.type) ? [["Rooms", `${form.bedrooms || 0} bed · ${form.bathrooms || 0} bath`] as const] : [])] as const).map(([k, v]) => (
                       <div key={k} className="flex justify-between gap-4 border-b border-[#edf0f5] py-2 last:border-0"><span className="text-[#6c7a8f]">{k}</span><span className="text-right font-semibold">{v}</span></div>
                     ))}
                   </div>
@@ -619,8 +812,8 @@ export default function SellerPage() {
                   {step > 0 && <button type="button" onClick={() => setStep(step - 1)} className="rounded-lg border border-[#dfe7f1] bg-white px-5 py-2.5 text-sm font-semibold">Back</button>}
                   {step === 4 ? (
                     <>
-                      <button type="button" onClick={() => save("Draft")} className="rounded-lg border border-[#dfe7f1] bg-white px-5 py-2.5 text-sm font-semibold">Save as draft</button>
-                      <button type="button" onClick={() => save("Pending")} className="rounded-lg bg-[#0b8579] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#096d63]">Submit for approval</button>
+                      <button type="button" disabled={saving} onClick={() => void save(false)} className="rounded-lg border border-[#dfe7f1] bg-white px-5 py-2.5 text-sm font-semibold disabled:opacity-60">{saving ? "Saving…" : "Save as draft"}</button>
+                      <button type="button" disabled={saving} onClick={() => void save(true)} className="rounded-lg bg-[#0b8579] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#096d63] disabled:opacity-60">{saving ? "Saving…" : "Submit for approval"}</button>
                     </>
                   ) : (
                     <button type="button" onClick={next} className="inline-flex items-center gap-2 rounded-lg bg-[#0b8579] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#096d63]">Continue<Ic n="right" s={15} /></button>
