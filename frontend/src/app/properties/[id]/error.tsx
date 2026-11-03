@@ -28,9 +28,9 @@ export default function PropertyDetailsError({
             Try again
           </Button>
 
-          <Button asChild variant="outline">
-            <Link href="/">Return home</Link>
-          </Button>
+          <Link href="/buyer/dashboard" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 font-medium text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+            Return to dashboard
+          </Link>
         </div>
       </div>
     </main>

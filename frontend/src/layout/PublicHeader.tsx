@@ -24,10 +24,11 @@ export default function PublicHeader({ signInHref = '/login', onSearchClick }: P
   const path = usePathname() || '/';
   const [moreOpen, setMoreOpen] = useState(false);
   const [drawer, setDrawer] = useState(false);
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() =>
+    typeof document !== 'undefined' && document.documentElement.dataset.theme === 'dark',
+  );
   const more = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setDark(document.documentElement.dataset.theme === 'dark'); }, []);
   useEffect(() => {
     const close = (e: MouseEvent) => { if (!more.current?.contains(e.target as Node)) setMoreOpen(false); };
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMoreOpen(false); };
@@ -35,7 +36,6 @@ export default function PublicHeader({ signInHref = '/login', onSearchClick }: P
     document.addEventListener('keydown', esc);
     return () => { document.removeEventListener('click', close); document.removeEventListener('keydown', esc); };
   }, []);
-  useEffect(() => { setMoreOpen(false); }, [path]);
 
   const toggleTheme = () => {
     const next = dark ? 'light' : 'dark';
