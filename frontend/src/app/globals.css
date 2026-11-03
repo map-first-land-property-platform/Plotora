@@ -1,6 +1,20 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-/* ejected from shadcn@4.22.1 */
+
+@font-face {
+  font-family: "Inter";
+  src: url("/assets/fonts/inter-latin-wght-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Plus Jakarta Sans";
+  src: url("/assets/fonts/plus-jakarta-sans-latin-wght-normal.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}
 @theme inline {
   @keyframes accordion-down {
     from {
@@ -26,8 +40,6 @@
     }
   }
 }
-
-/* Custom variants */
 @custom-variant data-open {
   &:where([data-state="open"]),
   &:where([data-open]:not([data-open="false"])) {
@@ -97,7 +109,6 @@
   }
 }
 
-/* scroll-fade */
 @property --scroll-fade-t {
   syntax: "<length-percentage>";
   inherits: false;
@@ -521,7 +532,6 @@
   --scroll-fade-mask: none;
 }
 
-/* shimmer */
 @property --shimmer-angle {
   syntax: "<angle>";
   inherits: true;
@@ -629,8 +639,6 @@
   --shimmer-angle: calc(--value(integer) * 1deg);
 }
 
-/* Kept for backwards compatibility. Unlayered, so it still wins over other
-   utilities on a plain .shimmer element. Variants are handled in the utility. */
 @media (prefers-reduced-motion: reduce) {
   .shimmer {
     animation: none;
@@ -760,8 +768,50 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-family: "Inter", sans-serif;
   }
   html {
-    @apply font-sans;
+    font-family: "Inter", sans-serif;
   }
 }
+
+.font-display { font-family: "Plus Jakarta Sans", sans-serif; }
+
+@layer components {
+  .eyebrow { @apply text-xs font-bold uppercase tracking-[0.18em] text-primary; }
+  .section-title { max-width: 42rem; font-family: "Plus Jakarta Sans", sans-serif; font-size: 26px; font-weight: 700; line-height: 1.2; letter-spacing: -0.04em; color: #182b35; }
+  .section-copy { margin-top: 4px; max-width: 42rem; color: #697b86; font-size: 13px; line-height: 1.55; }
+  .footer-label { @apply mb-4 text-xs font-bold uppercase tracking-[0.16em] text-muted-foreground; }
+  .prose-copy h2 { @apply mt-10 text-xl font-semibold tracking-tight; }
+  .prose-copy p { @apply mt-3 text-base leading-8 text-muted-foreground; }
+  .hero-search-card { @apply mt-8 rounded-2xl border border-[#d8e1e6] bg-white p-4 shadow-[0_8px_16px_rgba(24,43,53,0.06)]; }
+  .hero-tabs { @apply flex h-[38px] w-fit gap-1 rounded-[10px] bg-[#f0f4f6] p-1; }
+  .hero-tab { @apply rounded-lg px-3 py-1 text-[13px] font-semibold text-muted-foreground; }
+  .hero-tab.active { @apply bg-white text-foreground shadow-sm; }
+  .hero-tab:first-child { min-width: 51px; }
+  .hero-search-label { @apply mt-4 block text-xs font-bold text-[#41525c]; }
+  .hero-input { @apply mt-2 flex h-11 items-center gap-3 rounded-lg border border-[#d8e1e6] px-3; }
+  .hero-input input { @apply min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground; }
+  .hero-selects { @apply mt-2 grid gap-2 sm:grid-cols-2; }
+  .hero-selects label { @apply flex h-11 items-center rounded-lg border border-[#d8e1e6] px-3; }
+  .hero-selects select { @apply min-w-0 flex-1 appearance-none border-0 bg-transparent text-sm outline-none; }
+  .hero-submit { @apply mt-3 flex h-[46px] w-full items-center gap-2 rounded-[10px] bg-[#117668] px-4 text-[13px] font-semibold text-white transition-transform hover:-translate-y-0.5; }
+  .category-card { @apply flex min-h-20 items-center gap-3 rounded-xl border border-border bg-white px-4 transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm; }
+  .category-card strong { @apply block text-sm; }.category-card small { @apply mt-0.5 block text-xs text-muted-foreground; }.category-icon { @apply grid size-10 shrink-0 place-items-center rounded-xl bg-[#e9f5f1] text-primary; }
+  .property-art { @apply relative h-44 overflow-hidden bg-[#c5dcd5] p-4; }
+  .property-art > span { @apply relative z-10 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-primary shadow-sm; }
+  .property-art-lines { @apply absolute inset-0 opacity-70; background: linear-gradient(145deg, transparent 0 34%, rgba(255,255,255,.72) 35% 37%, transparent 38% 100%), linear-gradient(25deg, transparent 0 54%, rgba(23,107,58,.26) 55% 57%, transparent 58% 100%), linear-gradient(90deg, rgba(23,107,58,.14) 1px, transparent 1px), linear-gradient(rgba(23,107,58,.14) 1px, transparent 1px); background-size: auto, auto, 30px 30px, 30px 30px; }
+  .project-art { @apply relative flex h-36 items-end justify-between overflow-hidden bg-[#182b35] p-5; }
+  .project-art-overlay { @apply absolute inset-0 bg-[#182b35]/45; }
+  .project-art span { @apply text-xs font-semibold uppercase tracking-[0.14em] text-white/70; }
+}
+
+.home-heading { margin-bottom: 25px; }
+.home-heading h2 { margin-top: 8px; }
+.home-heading p { margin-top: 7px; color: #697b86; font-size: 14px; }
+.map-mode-control .select-shell { min-width: 86px; }
+.map-mode-control .select-trigger { height: 34px; min-width: 86px; padding: 0 8px; border: 0; border-radius: 8px; font-size: 14px; }
+.map-mode-control .select-trigger-chevron svg { width: 15px; height: 15px; }
+.map-mode-control .select-menu { top: calc(100% + 5px); min-width: 118px; }
+
+
