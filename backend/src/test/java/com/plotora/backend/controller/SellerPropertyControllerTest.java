@@ -8,12 +8,20 @@ import com.plotora.backend.property.exception.InvalidPropertyException;
 import com.plotora.backend.property.exception.InvalidStatusTransitionException;
 import com.plotora.backend.property.exception.PropertyNotFoundException;
 import com.plotora.backend.property.service.PropertyService;
+import com.plotora.backend.auth.JwtService;
+import com.plotora.backend.config.SecurityConfig;
+import com.plotora.backend.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -30,11 +38,15 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(SellerPropertyController.class)
+@Import(SecurityConfig.class)
 class SellerPropertyControllerTest {
 
     private static final String BASE = "/api/v1/seller/properties";
@@ -56,10 +68,27 @@ class SellerPropertyControllerTest {
             """;
 
     @Autowired
+    private WebApplicationContext context;
+
     private MockMvc mvc;
 
     @MockitoBean
     private PropertyService service;
+
+    @MockitoBean
+    private JwtService jwtService;
+
+    @MockitoBean
+    private UserRepository users;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUpMockMvc() {
+        var authentication = UsernamePasswordAuthenticationToken.authenticated(OWNER, null, List.of());
+        mvc = MockMvcBuilders.webAppContextSetup(context)
+                .apply(SecurityMockMvcConfigurers.springSecurity())
+                .defaultRequest(get("/").with(authentication(authentication)).with(csrf()))
+                .build();
+    }
 
     private static PropertyResponse response(ListingStatus status) {
         return new PropertyResponse(ID, "PLT-2026-AAAAAA", "20 perch land in Habaraduwa", null,
@@ -115,7 +144,7 @@ class SellerPropertyControllerTest {
 
     @Test
     void missingUserHeaderReturns401() throws Exception {
-        mvc.perform(get(BASE)).andExpect(status().isUnauthorized());
+        mvc.perform(get(BASE).with(anonymous())).andExpect(status().isUnauthorized());
         verifyNoInteractions(service);
     }
 

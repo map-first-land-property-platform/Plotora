@@ -21,6 +21,10 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
+interface AuthUser {
+  roles: string[];
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -37,8 +41,8 @@ export default function LoginPage() {
   async function onSubmit(values: FormValues) {
     setServerError(null);
     try {
-      await api("/api/auth/login", { method: "POST", body: JSON.stringify(values) });
-      router.push("/"); // TODO: redirect to the Buyer / Seller dashboard by role
+      const user = await api<AuthUser>("/api/auth/login", { method: "POST", body: JSON.stringify(values) });
+      router.push(user.roles.includes("BUYER") ? "/buyer/dashboard" : "/");
       router.refresh();
     } catch (e) {
       setServerError(

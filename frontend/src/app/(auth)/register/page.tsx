@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Briefcase, Heart, Tag, Wrench } from "lucide-react";
@@ -36,6 +36,10 @@ const schema = z
   });
 type FormValues = z.infer<typeof schema>;
 
+interface AuthUser {
+  roles: string[];
+}
+
 const ROLES = [
   { value: "BUYER", title: "Buyer / renter", icon: Heart, enabled: true },
   { value: "SELLER", title: "Seller / owner", icon: Tag, enabled: true },
@@ -50,7 +54,7 @@ export default function RegisterPage() {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     setValue,
     setError,
     formState: { errors, isSubmitting },
@@ -61,8 +65,8 @@ export default function RegisterPage() {
     },
   });
 
-  const role = watch("role");
-  const password = watch("password");
+  const role = useWatch({ control, name: "role" });
+  const password = useWatch({ control, name: "password" });
 
   async function onSubmit(values: FormValues) {
     setServerError(null);
@@ -78,11 +82,11 @@ export default function RegisterPage() {
         }),
       });
       // sign the new user in straight away
-      await api("/api/auth/login", {
+      const user = await api<AuthUser>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ email: values.email, password: values.password, rememberMe: false }),
       });
-      router.push("/"); // TODO: redirect to the Buyer / Seller dashboard by role
+      router.push(user.roles.includes("BUYER") ? "/buyer/dashboard" : "/");
       router.refresh();
     } catch (e) {
       if (e instanceof ApiError) {

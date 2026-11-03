@@ -18,5 +18,9 @@ public interface PropertyRepository extends JpaRepository<Property, UUID> {
 
     Optional<Property> findByIdAndOwnerId(UUID id, UUID ownerId);
 
+    List<Property> findByStatusOrderByCreatedAtDesc(ListingStatus status);
+
+    Optional<Property> findByIdAndStatus(UUID id, ListingStatus status);
+
     boolean existsByReferenceCode(String referenceCode);
 }

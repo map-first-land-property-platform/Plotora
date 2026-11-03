@@ -7,6 +7,7 @@ import com.plotora.backend.property.PropertyCategory;
 import com.plotora.backend.property.PropertyImage;
 import com.plotora.backend.property.dto.PropertyRequest;
 import com.plotora.backend.property.dto.PropertyResponse;
+import com.plotora.backend.property.dto.PublicPropertyResponse;
 import com.plotora.backend.property.exception.InvalidPropertyException;
 import com.plotora.backend.property.exception.InvalidStatusTransitionException;
 import com.plotora.backend.property.exception.PropertyNotFoundException;
@@ -60,6 +61,18 @@ public class PropertyService {
 
     public PropertyResponse getMyProperty(UUID id, UUID ownerId) {
         return PropertyResponse.from(findOwned(id, ownerId));
+    }
+
+    public List<PublicPropertyResponse> getPublishedProperties() {
+        return repository.findByStatusOrderByCreatedAtDesc(ListingStatus.PUBLISHED).stream()
+                .map(PublicPropertyResponse::from)
+                .toList();
+    }
+
+    public PublicPropertyResponse getPublishedProperty(UUID id) {
+        Property property = repository.findByIdAndStatus(id, ListingStatus.PUBLISHED)
+                .orElseThrow(() -> new PropertyNotFoundException(id));
+        return PublicPropertyResponse.from(property);
     }
 
     @Transactional

@@ -1,7 +1,5 @@
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
-
 export default function PropertyNotFound() {
   return (
     <main className="flex min-h-[60vh] items-center justify-center px-4 py-12">
@@ -14,9 +12,9 @@ export default function PropertyNotFound() {
           This property could not be found or is no longer publicly available.
         </p>
 
-        <Button asChild>
-          <Link href="/">Return home</Link>
-        </Button>
+        <Link href="/buyer/dashboard" className="inline-flex min-h-10 items-center justify-center rounded-lg bg-teal-700 px-4 font-medium text-white transition hover:bg-teal-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-700 focus-visible:ring-offset-2">
+          Return to dashboard
+        </Link>
       </div>
     </main>
   );

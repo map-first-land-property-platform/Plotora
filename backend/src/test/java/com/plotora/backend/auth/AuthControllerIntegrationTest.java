@@ -90,6 +90,13 @@ class AuthControllerIntegrationTest {
     }
 
     @Test
+    void meWithoutAnAuthenticatedSessionReturnsUnauthorized() throws Exception {
+        mvc.perform(get("/api/auth/me"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.message").value("Please sign in to continue."));
+    }
+
+    @Test
     void registrationReturnsFieldErrorsForInvalidPassword() throws Exception {
         mvc.perform(post("/api/auth/register").with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
