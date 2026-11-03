@@ -258,6 +258,30 @@ class PropertyServiceTest {
         assertThat(service.getMyProperty(p.getId(), OWNER).id()).isEqualTo(p.getId());
     }
 
+    @Test
+    void publishedListQueriesOnlyPublishedRecords() {
+        Property published = existing(ListingStatus.PUBLISHED);
+        when(repository.findByStatusOrderByCreatedAtDesc(ListingStatus.PUBLISHED)).thenReturn(List.of(published));
+
+        assertThat(service.getPublishedProperties())
+                .singleElement()
+                .satisfies(result -> {
+                    assertThat(result.id()).isEqualTo(published.getId());
+                    assertThat(result.status()).isEqualTo(ListingStatus.PUBLISHED);
+                });
+        verify(repository).findByStatusOrderByCreatedAtDesc(ListingStatus.PUBLISHED);
+    }
+
+    @Test
+    void nonPublishedAndMissingDetailsAreReportedAsNotFound() {
+        UUID id = UUID.randomUUID();
+        when(repository.findByIdAndStatus(id, ListingStatus.PUBLISHED)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getPublishedProperty(id))
+                .isInstanceOf(PropertyNotFoundException.class);
+        verify(repository).findByIdAndStatus(id, ListingStatus.PUBLISHED);
+    }
+
     // ---------- update / submit / delete ----------
 
     @Test
