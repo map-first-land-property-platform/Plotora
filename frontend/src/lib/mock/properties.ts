@@ -1,16 +1,24 @@
-import type { PropertyDetails, PropertyImage } from "@/types/property";
+import type {
+  PropertyDetails,
+  PropertyImage,
+} from "@/types/property";
 
 /**
- * Mock data for building the Buyer pages before the backend API is ready.
- * Shape must match GET /api/v1/properties/{id} (see src/types/property.ts).
- * Delete this file once the real API is integrated.
+ * Draft property fixtures for Buyer development and tests.
+ * Keep their shape aligned with the agreed API contract.
  */
+const MOCK_IMAGE_URLS = [
+  "/mock/property-placeholder.svg",
+  "/mock/property-view-2.svg",
+  "/mock/property-view-3.svg",
+] as const;
 
-const PLACEHOLDER_IMAGE_URL = "/mock/property-placeholder.svg";
-
-function placeholderImages(title: string, count = 3): PropertyImage[] {
+function placeholderImages(
+  title: string,
+  count = 3,
+): PropertyImage[] {
   return Array.from({ length: count }, (_, index) => ({
-    url: PLACEHOLDER_IMAGE_URL,
+    url: MOCK_IMAGE_URLS[index % MOCK_IMAGE_URLS.length],
     alt: `${title}, photo ${index + 1}`,
     order: index,
   }));

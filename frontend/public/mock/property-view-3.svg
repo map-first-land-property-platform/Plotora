@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <rect width="1600" height="900" fill="#fef3c7"/>
+  <path d="M0 600L450 220L900 600L1250 350L1600 600V900H0Z" fill="#fcd34d"/>
+  <circle cx="250" cy="170" r="75" fill="#ffffff"/>
+  <rect x="500" y="370" width="600" height="160" rx="24" fill="#ffffff"/>
+  <text x="800" y="470" text-anchor="middle" font-family="Arial, sans-serif" font-size="56" fill="#78350f">Property view 3</text>
+</svg>
