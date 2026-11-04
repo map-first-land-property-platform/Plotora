@@ -110,6 +110,15 @@ public class Property {
     @Column(name = "owner_id")
     private UUID ownerId;
 
+    @Column(name = "rejection_reason", columnDefinition = "TEXT")
+    private String rejectionReason;
+
+    @Column(name = "reviewed_at")
+    private Instant reviewedAt;
+
+    @Column(name = "reviewed_by")
+    private UUID reviewedBy;
+
     @OneToMany(mappedBy = "property", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<PropertyImage> images = new ArrayList<>();
@@ -143,6 +152,12 @@ public class Property {
     public void setListingType(ListingType listingType) { this.listingType = listingType; }
 
     public ListingStatus getStatus() { return status; }
+    public String getRejectionReason() { return rejectionReason; }
+    public void setRejectionReason(String rejectionReason) { this.rejectionReason = rejectionReason; }
+    public Instant getReviewedAt() { return reviewedAt; }
+    public void setReviewedAt(Instant reviewedAt) { this.reviewedAt = reviewedAt; }
+    public UUID getReviewedBy() { return reviewedBy; }
+    public void setReviewedBy(UUID reviewedBy) { this.reviewedBy = reviewedBy; }
     public void setStatus(ListingStatus status) { this.status = status; }
 
     public BigDecimal getPrice() { return price; }

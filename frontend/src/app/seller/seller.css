@@ -1,0 +1,71 @@
+/*
+ * Seller dashboard styles.
+ *
+ * 1. The public site's global stylesheets (public/assets/styles) reset elements, e.g.
+ *    `button { background: none; border: 0; padding: 0 }` and `h1 { font-size: 32px }`.
+ *    Plain (un-layered) rules like these override Tailwind classes. Inside the seller
+ *    dashboard we roll them back with `revert-layer`, so each element's Tailwind classes
+ *    apply again. The public pages are not affected.
+ * 2. Dark mode follows the site-wide theme (<html data-theme="dark">, see theme.ts) and
+ *    uses the same design tokens as the public site (base.css), so both look the same.
+ */
+
+.seller-app {
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.seller-app.seller-app :is(button, a, a:hover, h1, h2, h3, h4, h5, h6, p, ul, ol, table, img, strong) {
+  all: revert-layer;
+}
+
+/* ---------- Dark mode (team design tokens from base.css) ---------- */
+
+:root[data-theme="dark"] .seller-app { color-scheme: dark; }
+
+/* Logo: white on dark backgrounds, as on the public site */
+:root[data-theme="dark"] .seller-app .seller-logo { filter: brightness(0) invert(1); }
+
+/* Surfaces */
+:root[data-theme="dark"] .seller-app.bg-\[\#f3f6fa\],
+:root[data-theme="dark"] .seller-app .bg-\[\#f3f6fa\] { background-color: var(--bg); }
+:root[data-theme="dark"] .seller-app .bg-white { background-color: var(--surface); }
+:root[data-theme="dark"] .seller-app .bg-\[\#f7f9fc\],
+:root[data-theme="dark"] .seller-app .hover\:bg-\[\#fbfcfe\]:hover { background-color: var(--surface-2); }
+:root[data-theme="dark"] .seller-app .bg-slate-100,
+:root[data-theme="dark"] .seller-app .hover\:bg-slate-50:hover,
+:root[data-theme="dark"] .seller-app .hover\:bg-slate-100:hover { background-color: var(--surface-3); }
+
+/* Text */
+:root[data-theme="dark"] .seller-app.text-\[\#0f2038\],
+:root[data-theme="dark"] .seller-app .text-\[\#0f2038\],
+:root[data-theme="dark"] .seller-app .hover\:text-slate-800:hover { color: var(--text); }
+:root[data-theme="dark"] .seller-app .text-slate-600 { color: var(--text-2); }
+:root[data-theme="dark"] .seller-app .text-\[\#6c7a8f\] { color: var(--muted); }
+:root[data-theme="dark"] .seller-app .text-slate-400 { color: var(--faint); }
+
+/* Borders */
+:root[data-theme="dark"] .seller-app .border-\[\#e3e9f0\],
+:root[data-theme="dark"] .seller-app .border-\[\#dfe7f1\],
+:root[data-theme="dark"] .seller-app .border-\[\#edf0f5\],
+:root[data-theme="dark"] .seller-app .border-slate-200 { border-color: var(--line); }
+:root[data-theme="dark"] .seller-app .border-\[\#cfd8e3\] { border-color: var(--line-strong); }
+:root[data-theme="dark"] .seller-app .ring-\[\#e3e9f0\] { --tw-ring-color: var(--line); }
+
+/* Brand */
+:root[data-theme="dark"] .seller-app .bg-\[\#e7f5f3\] { background-color: var(--brand-50); }
+:root[data-theme="dark"] .seller-app .bg-\[\#ddeeec\] { background-color: var(--brand-100); }
+:root[data-theme="dark"] .seller-app .text-\[\#0b8579\] { color: var(--brand); }
+:root[data-theme="dark"] .seller-app .text-\[\#096d63\] { color: var(--brand-600); }
+
+/* Status colours */
+:root[data-theme="dark"] .seller-app .bg-red-50,
+:root[data-theme="dark"] .seller-app .hover\:bg-red-50:hover { background-color: var(--danger-bg); }
+:root[data-theme="dark"] .seller-app .border-red-200 { border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+:root[data-theme="dark"] .seller-app :is(.text-red-500, .text-red-600, .text-red-700) { color: var(--danger); }
+:root[data-theme="dark"] .seller-app :is(.bg-amber-50, .bg-orange-50) { background-color: var(--warn-bg); }
+:root[data-theme="dark"] .seller-app :is(.text-amber-700, .text-orange-600, .text-orange-500) { color: var(--warn); }
+
+/* Form fields */
+:root[data-theme="dark"] .seller-app :is(input, select, textarea) { color: var(--text); }
+:root[data-theme="dark"] .seller-app :is(input, select, textarea)::placeholder { color: var(--faint); }

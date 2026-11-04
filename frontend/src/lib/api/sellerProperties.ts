@@ -5,9 +5,10 @@
  * Set NEXT_PUBLIC_USE_MOCK_API=true in `.env.local` to use in-memory mock data
  * instead (useful when the backend is not running).
  *
- * TEMPORARY: the seller is identified with the `X-User-Id` header until the
- * Authentication module is merged. Then `authHeaders()` is the only place to change.
+ * The seller is the signed-in user: requests send the session cookies, and write
+ * requests carry the CSRF token (see `lib/auth/session.ts`).
  */
+import { csrfHeader, SERVER_URL, ServerUnreachableError } from "@/lib/auth/session";
 
 export type PropertyCategory = "LAND" | "HOUSE" | "APARTMENT" | "COMMERCIAL";
 export type ListingType = "SALE" | "RENT";
@@ -51,6 +52,9 @@ export interface SellerProperty extends SellerPropertyRequest {
   ownerId: string;
   createdAt: string;
   updatedAt: string;
+  /** Set when an admin rejected the listing; cleared when it is resubmitted. */
+  rejectionReason?: string | null;
+  reviewedAt?: string | null;
 }
 
 /** Error returned by the API (RFC 7807 problem detail). */
@@ -65,31 +69,34 @@ export class SellerApiError extends Error {
   }
 }
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8082/api/v1").replace(/\/$/, "");
+const API_BASE = `${SERVER_URL}/api/v1`;
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_API === "true";
-/** Temporary development seller until authentication exists. */
-const DEV_SELLER_ID = process.env.NEXT_PUBLIC_DEV_SELLER_ID ?? "11111111-1111-1111-1111-111111111111";
-
-function authHeaders(): Record<string, string> {
-  return { "X-User-Id": DEV_SELLER_ID };
-}
+const MOCK_OWNER_ID = "mock-seller";
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
   let res: Response;
   try {
+    const csrf = method === "GET" ? {} : await csrfHeader();
     res = await fetch(`${API_BASE}/seller/properties${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...authHeaders(), ...init.headers },
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...csrf, ...init.headers },
     });
-  } catch {
-    throw new SellerApiError("Could not reach the server. Is the backend running on port 8082?", 0);
+  } catch (e) {
+    if (e instanceof ServerUnreachableError || e instanceof TypeError) {
+      throw new SellerApiError("Could not reach the server. Is the backend running on port 8082?", 0);
+    }
+    throw new SellerApiError(e instanceof Error ? e.message : "Request failed", 0);
   }
   if (res.status === 204) return undefined as T;
   const body = await res.json().catch(() => null);
   if (!res.ok) {
+    if (res.status === 401) throw new SellerApiError("Your session has ended. Please sign in again.", 401);
+    if (res.status === 403) throw new SellerApiError("You don’t have permission to do this. Make sure you’re signed in with a seller account, then refresh the page.", 403);
     const fieldErrors: Record<string, string> = body?.errors ?? {};
     const first = Object.entries(fieldErrors)[0];
-    const message = first ? `${first[0]}: ${first[1]}` : body?.detail ?? `Request failed (${res.status})`;
+    const message = first ? `${first[0]}: ${first[1]}` : body?.detail ?? body?.message ?? `Request failed (${res.status})`;
     throw new SellerApiError(message, res.status, fieldErrors);
   }
   return body as T;
@@ -142,7 +149,7 @@ const mock = (() => {
       currency: "LKR",
       pricePerPerch: d.listingType === "SALE" && d.extentPerches ? Math.round(d.price / d.extentPerches) : null,
       monthlyRent: d.listingType === "RENT" ? d.price : null,
-      ownerId: DEV_SELLER_ID,
+      ownerId: MOCK_OWNER_ID,
       createdAt: now(),
       updatedAt: now(),
     };

@@ -340,4 +340,91 @@ class PropertyServiceTest {
                 .isInstanceOf(InvalidStatusTransitionException.class);
         verify(repository, never()).delete(any());
     }
+
+    // ---------- admin review ----------
+
+    @Nested
+    class Review {
+
+        private final UUID admin = UUID.randomUUID();
+
+        @Test
+        void approvingPendingListingPublishesItAndRecordsReviewer() {
+            Property p = existing(ListingStatus.PENDING_REVIEW);
+            when(repository.findById(p.getId())).thenReturn(Optional.of(p));
+
+            PropertyResponse r = service.approve(p.getId(), admin);
+
+            assertThat(r.status()).isEqualTo(ListingStatus.PUBLISHED);
+            assertThat(r.reviewedAt()).isNotNull();
+            assertThat(r.rejectionReason()).isNull();
+            assertThat(p.getReviewedBy()).isEqualTo(admin);
+        }
+
+        @Test
+        void rejectingPendingListingStoresTheReason() {
+            Property p = existing(ListingStatus.PENDING_REVIEW);
+            when(repository.findById(p.getId())).thenReturn(Optional.of(p));
+
+            PropertyResponse r = service.reject(p.getId(), "  Please add the deed number.  ", admin);
+
+            assertThat(r.status()).isEqualTo(ListingStatus.REJECTED);
+            assertThat(r.rejectionReason()).isEqualTo("Please add the deed number.");
+            assertThat(p.getReviewedBy()).isEqualTo(admin);
+        }
+
+        @Test
+        void onlyListingsWaitingForReviewCanBeApproved() {
+            Property p = existing(ListingStatus.DRAFT);
+            when(repository.findById(p.getId())).thenReturn(Optional.of(p));
+
+            assertThatThrownBy(() -> service.approve(p.getId(), admin))
+                    .isInstanceOf(InvalidStatusTransitionException.class);
+            verify(repository, never()).save(any());
+        }
+
+        @Test
+        void onlyListingsWaitingForReviewCanBeRejected() {
+            Property p = existing(ListingStatus.PUBLISHED);
+            when(repository.findById(p.getId())).thenReturn(Optional.of(p));
+
+            assertThatThrownBy(() -> service.reject(p.getId(), "Not allowed", admin))
+                    .isInstanceOf(InvalidStatusTransitionException.class);
+        }
+
+        @Test
+        void reviewingUnknownListingIsNotFound() {
+            UUID id = UUID.randomUUID();
+            when(repository.findById(id)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.approve(id, admin))
+                    .isInstanceOf(PropertyNotFoundException.class);
+        }
+
+        @Test
+        void reviewListDefaultsToPendingOldestFirst() {
+            Property newer = existing(ListingStatus.PENDING_REVIEW);
+            Property older = existing(ListingStatus.PENDING_REVIEW);
+            when(repository.findByStatusOrderByCreatedAtDesc(ListingStatus.PENDING_REVIEW))
+                    .thenReturn(List.of(newer, older));
+
+            assertThat(service.getListingsForReview(null))
+                    .extracting(PropertyResponse::id)
+                    .containsExactly(older.getId(), newer.getId());
+        }
+
+        @Test
+        void resubmittingRejectedListingClearsThePreviousReview() {
+            Property p = existing(ListingStatus.REJECTED);
+            p.setRejectionReason("Missing deed number");
+            p.setReviewedBy(admin);
+            when(repository.findByIdAndOwnerId(p.getId(), OWNER)).thenReturn(Optional.of(p));
+
+            PropertyResponse r = service.submitForReview(p.getId(), OWNER);
+
+            assertThat(r.status()).isEqualTo(ListingStatus.PENDING_REVIEW);
+            assertThat(r.rejectionReason()).isNull();
+            assertThat(p.getReviewedBy()).isNull();
+        }
+    }
 }
