@@ -644,7 +644,10 @@ export default function SellerPage() {
                           <td className="px-3 py-3">
                             <div className="flex items-center gap-3">
                               <span className="flex h-9 w-12 shrink-0 items-center justify-center rounded-md bg-[#e7f5f3] text-[#0b8579]"><Ic n="home" /></span>
-                              <div><p className="font-semibold text-[#0f2038]">{r.title}</p><p className="text-[11px] text-[#6c7a8f]">{r.location}</p></div>
+                              <div><p className="font-semibold text-[#0f2038]">{r.title}</p><p className="text-[11px] text-[#6c7a8f]">{r.location}</p>
+                                {r.apiStatus === "REJECTED" && r.source.rejectionReason && (
+                                  <p className="mt-0.5 text-[11px] text-red-600">Rejected: {r.source.rejectionReason}</p>
+                                )}</div>
                             </div>
                           </td>
                           <td className="px-3 py-3 text-slate-600">{r.type}{r.mode === "Rent out" && <><br />· Rent</>}</td>
@@ -709,6 +712,12 @@ export default function SellerPage() {
                 {editing && <StatusChip s={editing.status} />}
               </div>
               <p className="mb-4 mt-1 text-xs text-[#6c7a8f]">{editing ? editing.title : "List land or property in five quick steps."}</p>
+              {editing?.apiStatus === "REJECTED" && editing.source.rejectionReason && (
+                <div role="note" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                  <span className="font-semibold">Rejected by Plotora: </span>{editing.source.rejectionReason}
+                  <span className="mt-0.5 block text-red-600">Make the changes, then submit the listing for approval again.</span>
+                </div>
+              )}
 
               <ol className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
                 {STEPS.map((s, i) => (
