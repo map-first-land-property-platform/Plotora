@@ -103,6 +103,9 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public UserResponse currentUser(UUID userId) {
+        if (userId == null) {
+            throw new AuthException(HttpStatus.UNAUTHORIZED, "Please sign in to continue.");
+        }
         User user = users.findById(userId).filter(u -> "ACTIVE".equals(u.getStatus()))
             .orElseThrow(() -> new AuthException(HttpStatus.UNAUTHORIZED, "Your session is no longer valid."));
         return toResponse(user);

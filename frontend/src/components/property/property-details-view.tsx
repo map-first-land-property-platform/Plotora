@@ -18,7 +18,7 @@ import {
   formatMonthlyRent,
   formatPrice,
   formatPricePerPerch,
-} from "@/lib/format";
+} from "@/lib/property-format";
 import type { PropertyDetails } from "@/types/property";
 
 interface PropertyDetailsViewProps {
@@ -65,10 +65,10 @@ export function PropertyDetailsView({
           <ol className="flex flex-wrap items-center gap-2">
             <li>
               <Link
-                href="/"
+                href="/buyer/dashboard"
                 className="text-teal-700 underline-offset-4 hover:underline"
               >
-                Home
+                Buyer Dashboard
               </Link>
             </li>
             <li aria-hidden="true" className="text-slate-400">
@@ -241,28 +241,20 @@ export function PropertyDetailsView({
             </section>
           </div>
 
-          <aside aria-labelledby="property-owner-heading">
+          <aside aria-labelledby="property-listing-heading">
             <Card>
               <CardHeader>
                 <h2
-                  id="property-owner-heading"
+                  id="property-listing-heading"
                   className="text-lg font-semibold"
                 >
-                  Listed by
+                  Listing information
                 </h2>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="font-medium">{property.owner.name}</p>
-
-                {property.owner.verified && (
-                  <Badge
-                    variant="outline"
-                    className="border-teal-200 bg-teal-50 text-teal-800"
-                  >
-                    Verified owner
-                  </Badge>
-                )}
-
+                <p className="text-sm text-slate-700">
+                  Reference <span className="font-semibold">{property.referenceCode}</span>
+                </p>
                 <p className="text-sm text-slate-600">
                   Listed on {formatDate(property.createdAt)}
                 </p>

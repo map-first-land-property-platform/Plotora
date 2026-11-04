@@ -7,6 +7,8 @@ export type PropertyCategory = "LAND" | "HOUSE" | "APARTMENT" | "COMMERCIAL";
 
 export type ListingType = "SALE" | "RENT";
 
+export type Furnishing = "FURNISHED" | "SEMI_FURNISHED" | "UNFURNISHED";
+
 export type ListingStatus =
   | "DRAFT"
   | "PENDING_REVIEW"
@@ -43,7 +45,7 @@ export interface RentalDetails {
   monthlyRent: number;
   depositAmount: number | null;
   availableFrom: string | null; // ISO date, e.g. "2026-11-01"
-  furnishing: "FURNISHED" | "SEMI_FURNISHED" | "UNFURNISHED" | null;
+  furnishing: Furnishing | null;
 }
 
 export interface PropertyImage {
@@ -75,7 +77,7 @@ export interface PropertyDetails {
   rentalDetails: RentalDetails | null;
   features: string[];
   images: PropertyImage[];
-  owner: PropertyOwner;
+  owner?: PropertyOwner | null;
   createdAt: string; // ISO date-time
 }
 

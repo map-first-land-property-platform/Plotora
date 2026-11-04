@@ -45,7 +45,9 @@ public record PropertyResponse(
         List<String> imageUrls,
         UUID ownerId,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        String rejectionReason,
+        Instant reviewedAt
 ) {
     public static PropertyResponse from(Property p) {
         return new PropertyResponse(
@@ -59,7 +61,8 @@ public record PropertyResponse(
                 p.getMonthlyRent(), p.getDepositAmount(), p.getAvailableFrom(), p.getFurnishing(),
                 p.getFeatures() == null ? List.of() : List.copyOf(p.getFeatures()),
                 p.getImages().stream().map(PropertyImage::getUrl).toList(),
-                p.getOwnerId(), p.getCreatedAt(), p.getUpdatedAt()
+                p.getOwnerId(), p.getCreatedAt(), p.getUpdatedAt(),
+                p.getRejectionReason(), p.getReviewedAt()
         );
     }
 }

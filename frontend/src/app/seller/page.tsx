@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Inter } from "next/font/google";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   createListing,
   deleteListing,
@@ -18,6 +19,8 @@ import {
   type SellerProperty,
   type SellerPropertyRequest,
 } from "@/lib/api/sellerProperties";
+import { firstName, getSessionUser, greeting, initials, signOut, type SessionUser } from "@/lib/auth/session";
+import "./seller.css";
 
 const inter = Inter({ subsets: ["latin"], display: "swap" });
 
@@ -35,8 +38,6 @@ interface Listing {
   type: PType;
   mode: Mode;
   price: number;
-  views: number;
-  enquiries: number;
   listed: string;
   status: Status;
   apiStatus: ListingStatus;
@@ -64,8 +65,6 @@ function toListing(p: SellerProperty): Listing {
     type: TYPE_LABEL[p.category],
     mode: p.listingType === "RENT" ? "Rent out" : "Sell",
     price: Number(p.price),
-    views: 0, // view tracking is not part of Sprint 1
-    enquiries: 0, // enquiries come with the Buyer module
     listed: listedFmt.format(new Date(p.createdAt)),
     status: STATUS_LABEL[p.status],
     apiStatus: p.status,
@@ -77,7 +76,6 @@ function toListing(p: SellerProperty): Listing {
 const TYPES: PType[] = ["Land", "House", "Apartment", "Commercial"];
 const TABS = ["All", "Approved", "Pending", "Draft", "Rejected", "Sold"] as const;
 const STEPS = ["Basics", "Location", "Details", "Photos & documents", "Review"];
-const views14 = [56, 52, 48, 44, 45, 47, 50, 46, 50, 54, 54, 56, 60, 58];
 
 const DISTRICTS = [
   "Ampara", "Anuradhapura", "Badulla", "Batticaloa", "Colombo", "Galle", "Gampaha", "Hambantota",
@@ -177,6 +175,7 @@ const P: Record<string, string> = {
   grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
   search: "M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13ZM16 16l4.5 4.5",
   bell: "M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 21h4",
+  moon: "M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z",
   sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M5 19l1.5-1.5M17.5 6.5 19 5",
   eye: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z",
   heart: "M12 20s-8-5-8-11a4.5 4.5 0 0 1 8-2.5A4.5 4.5 0 0 1 20 9c0 6-8 11-8 11Z",
@@ -219,37 +218,31 @@ const StatusChip = ({ s }: { s: Status }) => (
   </span>
 );
 
-function Spark({ data, color }: { data: number[]; color: string }) {
-  const max = Math.max(...data), min = Math.min(...data);
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * 100},${28 - ((v - min) / (max - min || 1)) * 24}`).join(" ");
+function Stat({ label, value, icon, note }: { label: string; value: number; icon: string; note: string }) {
   return (
-    <svg viewBox="0 0 100 30" className="h-8 w-24" preserveAspectRatio="none" aria-hidden>
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" />
-    </svg>
+    <article className="rounded-2xl border border-[#e3e9f0] bg-white p-5">
+      <div className="flex items-start justify-between">
+        <p className="text-xs font-medium text-[#6c7a8f]">{label}</p>
+        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#e7f5f3] text-[#0b8579]"><Ic n={icon} s={16} /></span>
+      </div>
+      <p className="mt-2 text-3xl font-bold text-[#0f2038]">{value}</p>
+      <p className="mt-1 text-xs text-[#6c7a8f]">{note}</p>
+    </article>
   );
 }
 
-function Stat({ label, value, icon, delta, note, up = true, color }: {
-  label: string; value: string; icon: string; delta: string; note?: string; up?: boolean; color: string;
-}) {
-  const data = up ? [3, 4, 3, 5, 6, 5, 8, 9] : [9, 8, 8, 6, 5, 6, 4, 3];
+function ComingSoon({ title, icon, text }: { title: string; icon: string; text: string }) {
   return (
-    <article className="rounded-2xl border border-[#e3e9f0] bg-white p-4">
-      <div className="flex items-start justify-between">
-        <p className="text-xs text-[#6c7a8f]">{label}</p>
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#e7f5f3] text-[#0b8579]"><Ic n={icon} s={15} /></span>
+    <section className="rounded-2xl border border-[#e3e9f0] bg-white p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-bold">{title}</h2>
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">Coming soon</span>
       </div>
-      <p className="mt-1 text-2xl font-bold text-[#0f2038]">{value}</p>
-      <div className="mt-2 flex items-end justify-between">
-        <div className="flex items-center gap-2 text-[11px]">
-          <span className={`rounded px-1.5 py-0.5 font-semibold ${up ? "bg-[#e7f5f3] text-[#0b8579]" : "bg-red-50 text-red-600"}`}>
-            {up ? "↗" : "↘"} {delta}
-          </span>
-          {note && <span className="text-[#6c7a8f]">{note}</span>}
-        </div>
-        <Spark data={data} color={color} />
+      <div className="mt-4 flex items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#e7f5f3] text-[#0b8579]"><Ic n={icon} s={18} /></span>
+        <p className="text-xs leading-relaxed text-[#6c7a8f]">{text}</p>
       </div>
-    </article>
+    </section>
   );
 }
 
@@ -263,12 +256,12 @@ const Field = ({ label, req, hint, children }: { label: string; req?: boolean; h
 const inp = "w-full rounded-lg border border-[#dfe7f1] bg-white px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 focus:border-[#0b8579] focus:ring-2 focus:ring-[#0b8579]/10";
 
 /* ───────── Page ───────── */
-function NavBtn({ icon, label, on, onClick, badge: b }: { icon: string; label: string; on?: boolean; onClick: () => void; badge?: number }) {
+function NavBtn({ icon, label, on, onClick, soon }: { icon: string; label: string; on?: boolean; onClick?: () => void; soon?: boolean }) {
   return (
-    <button type="button" onClick={onClick}
-      className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${on ? "bg-[#e7f5f3] font-semibold text-[#0b8579]" : "text-slate-600 hover:bg-slate-50"}`}>
+    <button type="button" onClick={onClick} disabled={soon} title={soon ? "Coming in a later sprint" : undefined}
+      className={`mb-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${on ? "bg-[#e7f5f3] font-semibold text-[#0b8579]" : soon ? "cursor-not-allowed text-slate-400" : "text-slate-600 hover:bg-slate-50"}`}>
       <Ic n={icon} s={17} />{label}
-      {b ? <span className="ml-auto rounded-full bg-[#ddeeec] px-1.5 text-[11px] font-semibold text-[#096d63]">{b}</span> : null}
+      {soon ? <span className="ml-auto rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">Soon</span> : null}
     </button>
   );
 }
@@ -277,7 +270,21 @@ function Group({ t }: { t: string }) {
   return <p className="mb-1.5 mt-5 px-3 text-[10px] font-bold tracking-[0.12em] text-slate-400">{t}</p>;
 }
 
+/* Theme: uses the site-wide setting from theme.ts (localStorage "plotora-theme" + <html data-theme>). */
+function subscribeTheme(onChange: () => void): () => void {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => observer.disconnect();
+}
+function readTheme(): "light" | "dark" {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
 export default function SellerPage() {
+  const router = useRouter();
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, () => "light");
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [access, setAccess] = useState<"checking" | "ok" | "forbidden">("checking");
   const [items, setItems] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -311,22 +318,44 @@ export default function SellerPage() {
     try {
       setItems((await getMyListings()).map(toListing));
     } catch (e) {
+      if (e instanceof SellerApiError && e.status === 401) { router.replace("/login"); return; }
       setLoadError(e instanceof SellerApiError ? e.message : "Could not load your listings.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [router]);
 
+  // Check who is signed in, then load that seller's listings.
   useEffect(() => {
     let active = true;
-    getMyListings()
-      .then((data) => { if (active) setItems(data.map(toListing)); })
+    getSessionUser()
+      .then((u) => {
+        if (!active) return;
+        if (!u) { router.replace("/login"); return; }
+        if (!u.roles.includes("SELLER")) { setAccess("forbidden"); return; }
+        setUser(u);
+        setAccess("ok");
+        return getMyListings().then((data) => { if (active) setItems(data.map(toListing)); });
+      })
       .catch((e: unknown) => {
-        if (active) setLoadError(e instanceof SellerApiError ? e.message : "Could not load your listings.");
+        if (!active) return;
+        if (e instanceof SellerApiError && e.status === 401) { router.replace("/login"); return; }
+        setAccess("ok");
+        setLoadError(e instanceof Error ? e.message : "Could not load your listings.");
       })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, []);
+  }, [router]);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { window.localStorage.setItem("plotora-theme", next); } catch { /* storage unavailable */ }
+  }
+
+  async function handleSignOut() {
+    try { await signOut(); } finally { router.replace("/login"); }
+  }
 
   const count = (s: string) => (s === "All" ? items.length : items.filter((i) => i.status === s).length);
   const live = count("Approved");
@@ -339,7 +368,13 @@ export default function SellerPage() {
       .filter((i) => !t || [i.title, i.location, i.type, i.status].some((v) => v.toLowerCase().includes(t)));
   }, [items, tab, q]);
 
-  const top = [...items].filter((i) => i.status === "Approved").sort((a, b) => b.views - a.views).slice(0, 4);
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const todo: [string, string, string][] = [
+    ...(count("Draft") ? [["tag", `Finish ${plural(count("Draft"), "draft")}`, "Complete the details and submit for approval."] as [string, string, string]] : []),
+    ...(count("Rejected") ? [["check", `${plural(count("Rejected"), "listing")} rejected`, "Edit the listing and submit it again."] as [string, string, string]] : []),
+    ...(count("Pending") ? [["clock", `${plural(count("Pending"), "listing")} awaiting approval`, "Usually reviewed within 1–2 working days."] as [string, string, string]] : []),
+  ];
+  const top = [...items].sort((a, b) => b.source.createdAt.localeCompare(a.source.createdAt)).slice(0, 4);
 
   function go(v: View) { setView(v); setNav(false); setEditId(null); }
   function newListing() { setEditId(null); setForm(emptyForm); setStep(0); setErr(""); setView("form"); setNav(false); }
@@ -377,6 +412,7 @@ export default function SellerPage() {
       setItems((c) => (editId !== null ? c.map((x) => (x.id === editId ? row : x)) : [row, ...c]));
       setView("listings"); setEditId(null);
     } catch (e) {
+      if (e instanceof SellerApiError && e.status === 401) { router.replace("/login"); return; }
       setErr(e instanceof SellerApiError ? e.message : "Could not save the listing. Please try again.");
     } finally {
       setSaving(false);
@@ -399,13 +435,35 @@ export default function SellerPage() {
     : [view === "dashboard" ? "Dashboard" : "My Listings"];
 
 
+  if (access === "checking") {
+    return (
+      <div className={`seller-app ${inter.className} flex min-h-screen items-center justify-center bg-[#f3f6fa] text-sm text-[#6c7a8f]`}>
+        Loading your seller workspace…
+      </div>
+    );
+  }
+  if (access === "forbidden") {
+    return (
+      <div className={`seller-app ${inter.className} flex min-h-screen items-center justify-center bg-[#f3f6fa] px-4`}>
+        <div className="max-w-sm rounded-2xl border border-[#e3e9f0] bg-white p-6 text-center">
+          <h1 className="text-lg font-bold text-[#0f2038]">Seller accounts only</h1>
+          <p className="mt-2 text-sm text-[#6c7a8f]">You&rsquo;re signed in with an account that isn&rsquo;t a seller account.</p>
+          <div className="mt-5 flex justify-center gap-2">
+            <Link href="/buyer/dashboard" className="rounded-lg bg-[#0b8579] px-4 py-2 text-sm font-semibold text-white">Go to buyer dashboard</Link>
+            <button type="button" onClick={() => void handleSignOut()} className="rounded-lg border border-[#dfe7f1] px-4 py-2 text-sm font-semibold">Sign out</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className={`${inter.className} min-h-screen bg-[#f3f6fa] text-[#0f2038] antialiased [&_h1]:tracking-[-0.03em] [&_h2]:tracking-[-0.02em]`}>
+    <div className={`seller-app ${inter.className} min-h-screen bg-[#f3f6fa] text-[#0f2038] antialiased [&_h1]:tracking-[-0.03em] [&_h2]:tracking-[-0.02em]`}>
       {/* Sidebar */}
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-[220px] flex-col border-r border-[#e3e9f0] bg-white transition-transform md:translate-x-0 ${nav ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-16 items-center px-4">
           <Link href="/" aria-label="Plotora home">
-            <Image src="/plotora-logo.png" alt="Plotora" width={0} height={0} sizes="140px" unoptimized priority style={{ width: 140, height: "auto" }} />
+            <Image className="seller-logo" src="/assets/images/plotora-logo-transparent.png" alt="Plotora" width={0} height={0} sizes="140px" unoptimized priority style={{ width: 140, height: "auto" }} />
           </Link>
           <button type="button" aria-label="Close navigation" onClick={() => setNav(false)} className="ml-auto p-1 md:hidden"><Ic n="close" /></button>
         </div>
@@ -419,12 +477,7 @@ export default function SellerPage() {
           <Group t="LISTINGS" />
           <NavBtn icon="list" label="My listings" on={view === "listings" || (view === "form" && !!editing)} onClick={() => go("listings")} />
           <NavBtn icon="plus" label="Add property" on={view === "form" && !editing} onClick={newListing} />
-          <Group t="BUYERS" />
-          <NavBtn icon="chat" label="Enquiries" badge={2} onClick={() => {}} />
-          <NavBtn icon="cal" label="Site visits" onClick={() => {}} />
-          <div className="mt-4 border-t border-[#edf0f5] pt-3">
-            <NavBtn icon="grid" label="More workspace tools" onClick={() => {}} />
-          </div>
+          
         </nav>
       </aside>
       {nav && <button type="button" aria-label="Close navigation overlay" onClick={() => setNav(false)} className="fixed inset-0 z-30 bg-slate-950/30 md:hidden" />}
@@ -449,12 +502,16 @@ export default function SellerPage() {
           </form>
           <div className="ml-auto flex items-center gap-3 text-slate-600 md:ml-0">
             <button type="button" aria-label="Search" className="md:hidden"><Ic n="search" /></button>
-            <span className="relative"><Ic n="chat" /><b className="absolute -right-2 -top-2 rounded-full bg-red-500 px-1 text-[9px] text-white">3</b></span>
-            <span className="relative"><Ic n="bell" /><b className="absolute -right-2 -top-2 rounded-full bg-red-500 px-1 text-[9px] text-white">2</b></span>
-            <Ic n="sun" />
+            <button type="button" disabled aria-label="Messages (coming soon)" title="Messages – coming soon" className="rounded-lg p-1.5 text-slate-400"><Ic n="chat" /></button>
+            <button type="button" disabled aria-label="Notifications (coming soon)" title="Notifications – coming soon" className="rounded-lg p-1.5 text-slate-400"><Ic n="bell" /></button>
+            <button type="button" onClick={toggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={theme === "dark" ? "Light mode" : "Dark mode"} className="rounded-lg p-1.5 hover:bg-slate-100">
+              <Ic n={theme === "dark" ? "sun" : "moon"} />
+            </button>
             <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-400 text-[11px] font-bold text-white">RS</span>
-              <div className="hidden text-xs leading-tight sm:block"><p className="font-semibold text-[#0f2038]">Ruwan</p><p className="text-[#6c7a8f]">Seller</p></div>
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-400 text-[11px] font-bold text-white">{user ? initials(user.fullName) : ""}</span>
+              <div className="hidden text-xs leading-tight sm:block"><p className="font-semibold text-[#0f2038]">{user ? firstName(user.fullName) : ""}</p><p className="text-[#6c7a8f]">Seller</p></div>
+              <button type="button" onClick={() => void handleSignOut()} className="ml-1 rounded-md border border-[#dfe7f1] px-2 py-1 text-[11px] font-semibold text-[#6c7a8f] hover:bg-slate-50">Sign out</button>
             </div>
           </div>
         </header>
@@ -465,7 +522,7 @@ export default function SellerPage() {
             <>
               <div className="mb-5 flex items-start justify-between gap-3">
                 <div>
-                  <h1 className="text-2xl font-bold text-[#0f2038]">Good morning, Ruwan</h1>
+                  <h1 className="text-2xl font-bold text-[#0f2038]" suppressHydrationWarning>{greeting()}{user ? `, ${firstName(user.fullName)}` : ""}</h1>
                   <p className="mt-1 text-sm text-[#6c7a8f]">Your listings, enquiries and performance at a glance.</p>
                 </div>
                 <button type="button" onClick={newListing} className="inline-flex items-center gap-2 rounded-lg bg-[#0b8579] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#096d63]">
@@ -474,48 +531,25 @@ export default function SellerPage() {
               </div>
 
               <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <Stat label="Active listings" value={String(live)} icon="home" delta="12%" note={`${count("Pending")} pending approval`} color="#d98a3d" />
-                <Stat label="Views (30 days)" value="16,159" icon="eye" delta="18%" color="#3b6fb6" />
-                <Stat label="Enquiries" value="7" icon="chat" delta="9%" note="2 new" color="#0b8579" />
-                <Stat label="Saved by buyers" value="295" icon="heart" delta="3%" up={false} color="#d4577a" />
+                <Stat label="Total listings" value={items.length} icon="list" note={`${count("Sold")} sold`} />
+                <Stat label="Live on Plotora" value={live} icon="home" note="Approved and visible to buyers" />
+                <Stat label="Pending approval" value={count("Pending")} icon="clock" note="Usually reviewed in 1–2 working days" />
+                <Stat label="Drafts" value={count("Draft")} icon="tag" note={`${count("Rejected")} rejected – edit and resubmit`} />
               </div>
 
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_320px]">
                 <div className="space-y-4">
-                  <section className="rounded-2xl border border-[#e3e9f0] bg-white p-4">
-                    <div className="flex items-start justify-between">
-                      <div><h2 className="text-sm font-bold">Listing views</h2><p className="text-xs text-[#6c7a8f]">Last 14 days</p></div>
-                      <button type="button" className="text-xs font-semibold text-[#0b8579]">Full analytics →</button>
-                    </div>
-                    <svg viewBox="0 0 560 220" className="mt-3 w-full" role="img" aria-label="Listing views over the last 14 days">
-                      {[0, 25, 50, 75, 100].map((v) => (
-                        <g key={v}>
-                          <line x1="32" x2="550" y1={190 - v * 1.7} y2={190 - v * 1.7} stroke="#edf0f5" />
-                          <text x="24" y={194 - v * 1.7} fontSize="10" textAnchor="end" fill="#94a3b8">{v}</text>
-                        </g>
-                      ))}
-                      {(() => {
-                        const pts = views14.map((v, i) => [32 + (i / 13) * 518, 190 - v * 1.7]);
-                        const line = pts.map((p) => p.join(",")).join(" ");
-                        return (
-                          <>
-                            <polygon points={`32,190 ${line} 550,190`} fill="#cbd5e1" opacity="0.4" />
-                            <polyline points={line} fill="none" stroke="#d98a3d" strokeWidth="2" />
-                            {pts.map((p, i) => <circle key={i} cx={p[0]} cy={p[1]} r="2.5" fill="#fff" stroke="#d98a3d" />)}
-                          </>
-                        );
-                      })()}
-                      {[0, 2, 4, 6, 8, 10, 12].map((i) => (
-                        <text key={i} x={32 + (i / 13) * 518} y="208" fontSize="10" textAnchor="middle" fill="#94a3b8">{3 + i} Oct</text>
-                      ))}
-                    </svg>
-                  </section>
+                  <ComingSoon title="Listing performance" icon="eye"
+                    text="Views, saves and enquiry trends for your listings will appear here once buyers start exploring them on the map." />
 
                   <section className="rounded-2xl border border-[#e3e9f0] bg-white p-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <h2 className="text-sm font-bold">Top performing listings</h2>
+                      <h2 className="text-sm font-bold">Recent listings</h2>
                       <button type="button" onClick={() => go("listings")} className="text-xs font-semibold text-[#0b8579]">All listings →</button>
                     </div>
+                    {top.length === 0 && (
+                      <p className="py-6 text-center text-xs text-[#6c7a8f]">No listings yet. Add your first property to see it here.</p>
+                    )}
                     {top.map((i) => (
                       <div key={i.id} className="flex items-center gap-3 border-t border-[#edf0f5] py-2.5 first:border-0">
                         <span className="flex h-9 w-12 items-center justify-center rounded-md bg-[#e7f5f3] text-[#0b8579]"><Ic n="home" /></span>
@@ -523,7 +557,7 @@ export default function SellerPage() {
                           <p className="truncate text-sm font-semibold">{i.title}</p>
                           <p className="truncate text-xs text-[#6c7a8f]">{i.location} · {i.type}</p>
                         </div>
-                        <div className="text-right text-xs"><p className="font-bold">{fmt(i.price)}</p><p className="text-[#6c7a8f]">{i.views.toLocaleString()} views · {i.enquiries} enq.</p></div>
+                        <div className="flex flex-col items-end gap-1 text-xs"><p className="font-bold">{fmt(i.price)}</p><StatusChip s={i.status} /></div>
                       </div>
                     ))}
                   </section>
@@ -532,11 +566,10 @@ export default function SellerPage() {
                 <div className="space-y-4">
                   <section className="rounded-2xl border border-[#e3e9f0] bg-white p-4">
                     <h2 className="mb-2 text-sm font-bold">To do</h2>
-                    {[
-                      ["check", "Verify your property deeds", "Verified listings get up to 3× more enquiries."],
-                      ["chat", "Reply to 2 new enquiries", "Fast replies improve your ranking."],
-                      ["clock", `${count("Pending")} listing awaiting approval`, "Typically reviewed within 1–2 working days."],
-                    ].map(([ic, t, d]) => (
+                    {todo.length === 0 && (
+                      <p className="py-3 text-xs text-[#6c7a8f]">You&rsquo;re all caught up.</p>
+                    )}
+                    {todo.map(([ic, t, d]) => (
                       <div key={t} className="flex items-start gap-3 border-t border-[#edf0f5] py-3 first:border-0">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-orange-500"><Ic n={ic} s={16} /></span>
                         <div className="min-w-0 flex-1"><p className="text-xs font-semibold">{t}</p><p className="text-[11px] text-[#6c7a8f]">{d}</p></div>
@@ -544,20 +577,8 @@ export default function SellerPage() {
                       </div>
                     ))}
                   </section>
-                  <section className="rounded-2xl border border-[#e3e9f0] bg-white p-4">
-                    <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-bold">Latest enquiries</h2><button type="button" className="text-xs font-semibold text-[#0b8579]">Inbox →</button></div>
-                    {[
-                      ["AP", "Amaya Perera", "Hi, is this still available? I’d like to arr…", "New", "bg-amber-50 text-amber-700", "bg-violet-500"],
-                      ["AP", "Amaya Perera", "Could you share the survey p…", "Responded", "bg-[#e7f5f3] text-[#0b8579]", "bg-violet-500"],
-                      ["SR", "Sanduni Rahman", "Hi, is this still available? I…", "Visit scheduled", "bg-slate-100 text-slate-600", "bg-teal-600"],
-                    ].map(([a, n, m, s, sc, bg], i) => (
-                      <div key={i} className="flex items-center gap-2.5 border-t border-[#edf0f5] py-2.5 first:border-0">
-                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white ${bg}`}>{a}</span>
-                        <div className="min-w-0 flex-1"><p className="text-xs font-semibold">{n}</p><p className="truncate text-[11px] text-[#6c7a8f]">{m}</p></div>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${sc}`}>{s}</span>
-                      </div>
-                    ))}
-                  </section>
+                  <ComingSoon title="Enquiries" icon="chat"
+                    text="Messages from buyers about your listings will appear here when enquiries are added with the Buyer module." />
                 </div>
               </div>
             </>
@@ -597,7 +618,7 @@ export default function SellerPage() {
                       className="w-full rounded-lg border border-[#dfe7f1] py-2 pl-8 pr-3 text-xs outline-none focus:border-[#0b8579]" />
                   </div>
                   <button type="button" onClick={() => {
-                    const csv = ["Title,Type,Price,Status,Views,Listed", ...rows.map((r) => `"${r.title}",${r.type},${r.price},${r.status},${r.views},${r.listed}`)].join("\n");
+                    const csv = ["Reference,Title,Type,Price,Status,Listed", ...rows.map((r) => `${r.source.referenceCode},"${r.title.replace(/"/g, '""')}",${r.type},${r.price},${r.status},"${r.listed}"`)].join("\n");
                     const a = document.createElement("a");
                     a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
                     a.download = "listings.csv"; a.click();
@@ -612,7 +633,7 @@ export default function SellerPage() {
                           checked={rows.length > 0 && sel.length === rows.length}
                           onChange={(e) => setSel(e.target.checked ? rows.map((r) => r.id) : [])} /></th>
                         <th className="px-3 py-3">Listing</th><th className="px-3 py-3">Type</th><th className="px-3 py-3">Price</th>
-                        <th className="px-3 py-3">Status</th><th className="px-3 py-3">Views</th><th className="px-3 py-3">Listed</th><th className="w-10" />
+                        <th className="px-3 py-3">Status</th><th className="px-3 py-3">Reference</th><th className="px-3 py-3">Listed</th><th className="w-10" />
                       </tr>
                     </thead>
                     <tbody>
@@ -623,13 +644,16 @@ export default function SellerPage() {
                           <td className="px-3 py-3">
                             <div className="flex items-center gap-3">
                               <span className="flex h-9 w-12 shrink-0 items-center justify-center rounded-md bg-[#e7f5f3] text-[#0b8579]"><Ic n="home" /></span>
-                              <div><p className="font-semibold text-[#0f2038]">{r.title}</p><p className="text-[11px] text-[#6c7a8f]">{r.location}</p></div>
+                              <div><p className="font-semibold text-[#0f2038]">{r.title}</p><p className="text-[11px] text-[#6c7a8f]">{r.location}</p>
+                                {r.apiStatus === "REJECTED" && r.source.rejectionReason && (
+                                  <p className="mt-0.5 text-[11px] text-red-600">Rejected: {r.source.rejectionReason}</p>
+                                )}</div>
                             </div>
                           </td>
                           <td className="px-3 py-3 text-slate-600">{r.type}{r.mode === "Rent out" && <><br />· Rent</>}</td>
                           <td className="whitespace-nowrap px-3 py-3 font-semibold">{fmt(r.price)}</td>
                           <td className="px-3 py-3"><StatusChip s={r.status} /></td>
-                          <td className="px-3 py-3 text-slate-600">{r.views.toLocaleString()}</td>
+                          <td className="px-3 py-3 font-mono text-xs text-slate-600">{r.source.referenceCode}</td>
                           <td className="whitespace-nowrap px-3 py-3 text-slate-600">{r.listed}</td>
                           <td className="relative px-3 py-3">
                             <button type="button" aria-label={`Actions for ${r.title}`} onClick={(e) => { e.stopPropagation(); setMenu(menu === r.id ? null : r.id); }}
@@ -688,6 +712,12 @@ export default function SellerPage() {
                 {editing && <StatusChip s={editing.status} />}
               </div>
               <p className="mb-4 mt-1 text-xs text-[#6c7a8f]">{editing ? editing.title : "List land or property in five quick steps."}</p>
+              {editing?.apiStatus === "REJECTED" && editing.source.rejectionReason && (
+                <div role="note" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                  <span className="font-semibold">Rejected by Plotora: </span>{editing.source.rejectionReason}
+                  <span className="mt-0.5 block text-red-600">Make the changes, then submit the listing for approval again.</span>
+                </div>
+              )}
 
               <ol className="mb-5 grid grid-cols-2 gap-2 sm:grid-cols-5">
                 {STEPS.map((s, i) => (

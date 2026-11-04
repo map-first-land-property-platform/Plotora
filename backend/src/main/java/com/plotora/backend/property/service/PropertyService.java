@@ -7,6 +7,7 @@ import com.plotora.backend.property.PropertyCategory;
 import com.plotora.backend.property.PropertyImage;
 import com.plotora.backend.property.dto.PropertyRequest;
 import com.plotora.backend.property.dto.PropertyResponse;
+import com.plotora.backend.property.dto.PublicPropertyResponse;
 import com.plotora.backend.property.exception.InvalidPropertyException;
 import com.plotora.backend.property.exception.InvalidStatusTransitionException;
 import com.plotora.backend.property.exception.PropertyNotFoundException;
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.RoundingMode;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -62,6 +64,18 @@ public class PropertyService {
         return PropertyResponse.from(findOwned(id, ownerId));
     }
 
+    public List<PublicPropertyResponse> getPublishedProperties() {
+        return repository.findByStatusOrderByCreatedAtDesc(ListingStatus.PUBLISHED).stream()
+                .map(PublicPropertyResponse::from)
+                .toList();
+    }
+
+    public PublicPropertyResponse getPublishedProperty(UUID id) {
+        Property property = repository.findByIdAndStatus(id, ListingStatus.PUBLISHED)
+                .orElseThrow(() -> new PropertyNotFoundException(id));
+        return PublicPropertyResponse.from(property);
+    }
+
     @Transactional
     public PropertyResponse update(UUID id, PropertyRequest request, UUID ownerId) {
         Property property = findOwned(id, ownerId);
@@ -84,6 +98,10 @@ public class PropertyService {
                     "Only DRAFT or REJECTED listings can be submitted (current: " + property.getStatus() + ")");
         }
         property.setStatus(ListingStatus.PENDING_REVIEW);
+        // A new submission starts a new review.
+        property.setRejectionReason(null);
+        property.setReviewedAt(null);
+        property.setReviewedBy(null);
         return PropertyResponse.from(repository.save(property));
     }
 
@@ -95,6 +113,48 @@ public class PropertyService {
                     "Published or sold listings cannot be deleted (current: " + property.getStatus() + ")");
         }
         repository.delete(property);
+    }
+
+    // ---------- admin review ----------
+
+    /** Listings in the given status for admins, oldest first (default: waiting for review). */
+    public List<PropertyResponse> getListingsForReview(ListingStatus status) {
+        ListingStatus wanted = status == null ? ListingStatus.PENDING_REVIEW : status;
+        return repository.findByStatusOrderByCreatedAtDesc(wanted).reversed().stream()
+                .map(PropertyResponse::from)
+                .toList();
+    }
+
+    @Transactional
+    public PropertyResponse approve(UUID id, UUID adminId) {
+        Property property = findPendingReview(id);
+        property.setStatus(ListingStatus.PUBLISHED);
+        property.setRejectionReason(null);
+        markReviewed(property, adminId);
+        return PropertyResponse.from(repository.save(property));
+    }
+
+    @Transactional
+    public PropertyResponse reject(UUID id, String reason, UUID adminId) {
+        Property property = findPendingReview(id);
+        property.setStatus(ListingStatus.REJECTED);
+        property.setRejectionReason(reason.trim());
+        markReviewed(property, adminId);
+        return PropertyResponse.from(repository.save(property));
+    }
+
+    private Property findPendingReview(UUID id) {
+        Property property = repository.findById(id).orElseThrow(() -> new PropertyNotFoundException(id));
+        if (property.getStatus() != ListingStatus.PENDING_REVIEW) {
+            throw new InvalidStatusTransitionException(
+                    "Only listings waiting for review can be approved or rejected (current: " + property.getStatus() + ")");
+        }
+        return property;
+    }
+
+    private static void markReviewed(Property property, UUID adminId) {
+        property.setReviewedAt(Instant.now());
+        property.setReviewedBy(adminId);
     }
 
     // ---------- helpers ----------
