@@ -1,4 +1,4 @@
--- V2__create_properties.sql
+-- V3__create_properties.sql
 
 CREATE TABLE properties (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -96,3 +96,4 @@ CREATE TABLE property_images (
 );
 
 CREATE INDEX idx_property_images_property ON property_images (property_id);
+
