@@ -52,6 +52,9 @@ export interface SellerProperty extends SellerPropertyRequest {
   ownerId: string;
   createdAt: string;
   updatedAt: string;
+  /** Set when an admin rejected the listing; cleared when it is resubmitted. */
+  rejectionReason?: string | null;
+  reviewedAt?: string | null;
 }
 
 /** Error returned by the API (RFC 7807 problem detail). */

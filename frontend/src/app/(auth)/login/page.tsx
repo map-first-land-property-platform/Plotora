@@ -43,7 +43,10 @@ export default function LoginPage() {
     try {
       const user = await api<AuthUser>("/api/auth/login", { method: "POST", body: JSON.stringify(values) });
       router.push(
-        user.roles.includes("SELLER") ? "/seller" : user.roles.includes("BUYER") ? "/buyer/dashboard" : "/",
+        user.roles.includes("ADMIN") ? "/admin/listings"
+          : user.roles.includes("SELLER") ? "/seller"
+          : user.roles.includes("BUYER") ? "/buyer/dashboard"
+          : "/",
       );
       router.refresh();
     } catch (e) {
