@@ -75,6 +75,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/actuator/health/**", "/actuator/info", "/api/v1/health", "/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/properties", "/api/v1/properties/{id}").permitAll()
+                .requestMatchers("/api/v1/seller/**").hasRole("SELLER")
                 .anyRequest().authenticated())
             .addFilterBefore(new JwtCookieAuthenticationFilter(jwtService, users), UsernamePasswordAuthenticationFilter.class)
             .httpBasic(AbstractHttpConfigurer::disable)
