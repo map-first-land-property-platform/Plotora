@@ -40,6 +40,7 @@ function GalleryImage({
       src={source}
       alt={alt}
       fill
+      unoptimized
       sizes={sizes}
       loading={loading}
       className="object-cover"

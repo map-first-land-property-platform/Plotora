@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-@RestControllerAdvice
+@RestControllerAdvice(assignableTypes = AuthController.class)
 public class AuthErrorHandler {
     public record ErrorResponse(String message, Map<String, String> fieldErrors) {}
 

@@ -22,6 +22,10 @@ const schema = z.object({
 });
 type FormValues = z.infer<typeof schema>;
 
+interface AuthUser {
+  roles: string[];
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -33,8 +37,25 @@ export default function LoginPage() {
   async function onSubmit(values: FormValues) {
     setServerError(null);
     try {
+ feature/authentication
       await api("/api/auth/login", { method: "POST", body: JSON.stringify(values) });
       router.push("/");
+
+      const user = await api<AuthUser>("/api/auth/login", {
+  method: "POST",
+  body: JSON.stringify(values),
+});
+
+router.push(
+  user.roles.includes("ADMIN")
+    ? "/admin/listings"
+    : user.roles.includes("SELLER")
+      ? "/seller"
+      : user.roles.includes("BUYER")
+        ? "/buyer/dashboard"
+        : "/"
+);
+ develop
       router.refresh();
     } catch (e) {
       setServerError(e instanceof ApiError ? e.message : "Cannot reach the server. Is the backend running?");

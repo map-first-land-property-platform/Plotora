@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Briefcase, Heart, Tag, Wrench } from "lucide-react";
@@ -27,6 +27,10 @@ const schema = z.object({
 }).refine((d) => d.password === d.confirmPassword, { path: ["confirmPassword"], message: "Passwords do not match" });
 type FormValues = z.infer<typeof schema>;
 
+interface AuthUser {
+  roles: string[];
+}
+
 const ROLES = [
   { value: "BUYER", title: "Buyer / renter", icon: Heart, enabled: true },
   { value: "SELLER", title: "Seller / owner", icon: Tag, enabled: true },
@@ -46,9 +50,37 @@ export default function RegisterPage() {
   async function onSubmit(values: FormValues) {
     setServerError(null);
     try {
-      await api("/api/auth/register", { method: "POST", body: JSON.stringify({ fullName: values.fullName, email: values.email, phone: values.phone, password: values.password, role: values.role }) });
-      await api("/api/auth/login", { method: "POST", body: JSON.stringify({ email: values.email, password: values.password, rememberMe: false }) });
-      router.push("/");
+feature/authentication
+      await api("/api/auth/register", {
+  method: "POST",
+  body: JSON.stringify({
+    fullName: values.fullName,
+    email: values.email,
+    phone: values.phone,
+    password: values.password,
+    role: values.role,
+  }),
+});
+
+const user = await api<{ roles: string[] }>("/api/auth/login", {
+  method: "POST",
+  body: JSON.stringify({
+    email: values.email,
+    password: values.password,
+    rememberMe: false,
+  }),
+});
+
+router.push(
+  user.roles.includes("ADMIN")
+    ? "/admin/listings"
+    : user.roles.includes("SELLER")
+      ? "/seller"
+      : user.roles.includes("BUYER")
+        ? "/buyer/dashboard"
+        : "/"
+);
+ develop
       router.refresh();
     } catch (e) {
       if (e instanceof ApiError) {
