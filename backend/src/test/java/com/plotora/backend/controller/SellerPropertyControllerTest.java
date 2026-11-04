@@ -94,7 +94,7 @@ class SellerPropertyControllerTest {
                 PropertyCategory.LAND, ListingType.SALE, status, new BigDecimal("27000000"), "LKR",
                 "Main Road, Habaraduwa", "Galle", 6.0, 80.3, new BigDecimal("20"),
                 new BigDecimal("1350000"), null, null, null, null, null, null, null,
-                null, null, null, null, List.of(), List.of(), OWNER, Instant.now(), Instant.now());
+                null, null, null, null, List.of(), List.of(), OWNER, Instant.now(), Instant.now(), null, null);
     }
 
     // ---------- security ----------
