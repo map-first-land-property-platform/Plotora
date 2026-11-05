@@ -58,7 +58,6 @@ services:
     container_name: plotora-mailpit
     restart: unless-stopped
     ports:
-      - "127.0.0.1:1026:1025"
       - "127.0.0.1:8025:8025"
     networks:
       - plotora_network
