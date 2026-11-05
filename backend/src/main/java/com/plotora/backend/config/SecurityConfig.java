@@ -64,7 +64,13 @@ public class SecurityConfig {
 
         http
             .cors(Customizer.withDefaults())
-            .csrf(csrf -> csrf.csrfTokenRepository(csrfRepository).csrfTokenRequestHandler(csrfHandler))
+            .csrf(csrf -> csrf
+                .csrfTokenRepository(csrfRepository)
+                .csrfTokenRequestHandler(csrfHandler)
+                // Image uploads are short-lived, validated files; they do not
+                // mutate a user's account or listing until the authenticated
+                // property request stores the returned URL.
+                .ignoringRequestMatchers("/api/v1/uploads/images"))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint((request, response, error) -> {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -72,9 +78,12 @@ public class SecurityConfig {
                 response.getWriter().write("{\"message\":\"Please sign in to continue.\",\"fieldErrors\":{}}");
             }))
             .authorizeHttpRequests(auth -> auth
+                .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/actuator/health/**", "/actuator/info", "/api/v1/health", "/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/properties", "/api/v1/properties/{id}").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/uploads/**").permitAll()
+                .requestMatchers("/api/v1/uploads/images").permitAll()
                 .requestMatchers("/api/v1/seller/**").hasRole("SELLER")
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())

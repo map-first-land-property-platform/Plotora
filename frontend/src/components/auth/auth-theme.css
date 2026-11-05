@@ -1,0 +1,58 @@
+/* Use the home page's shared tokens on both authentication screens. */
+.auth.auth-register .registration-fields {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 14px;
+  align-items: start;
+}
+
+.auth.auth-register .registration-fields .input {
+  width: 100%;
+  min-height: 50px;
+  border-radius: 12px;
+}
+
+.auth.auth-register .registration-fields .label {
+  margin-bottom: 10px;
+}
+
+@media (max-width: 480px) {
+  .auth.auth-register .registration-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+:root[data-theme="dark"] .auth.auth :is(.auth-side, .auth-main, .auth-card) {
+  background-color: var(--surface);
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .auth.auth :is(h1, .label, .rc strong) {
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .auth.auth :is(.sub, .muted, .or, .check) {
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .auth.auth :is(.input, input:not([type="checkbox"]):not([type="radio"]), .social-btn, .radio-card .rc) {
+  background-color: var(--surface-2);
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .auth.auth input::placeholder {
+  color: var(--faint);
+}
+
+:root[data-theme="dark"] .auth.auth .radio-card input:checked + .rc {
+  background-color: var(--brand-50);
+  border-color: var(--brand);
+}
+
+:root[data-theme="dark"] .auth.auth :is(.link, .btn-ghost) {
+  color: var(--brand);
+}
+
+:root[data-theme="dark"] .auth.auth .login-brand img {
+  filter: brightness(0) invert(1);
+}

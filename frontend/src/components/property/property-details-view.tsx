@@ -1,268 +1,55 @@
-import type { ReactNode } from "react";
-import { PropertyGallery } from "@/components/property/property-gallery";
+"use client";
+
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
-
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-} from "@/components/ui/card";
-import {
-  CATEGORY_LABELS,
-  FURNISHING_LABELS,
-  LISTING_TYPE_LABELS,
-  formatDate,
-  formatExtent,
-  formatFloorArea,
-  formatMonthlyRent,
-  formatPrice,
-  formatPricePerPerch,
-} from "@/lib/property-format";
+import { ArrowLeft, ArrowUpRight, Check, ChevronRight, FileText, House, MapPin, Ruler, Share2 } from "lucide-react";
+import PublicHeader from "@/layout/PublicHeader";
+import PublicFooter from "@/layout/PublicFooter";
+import { BuyerProfileMenu } from "@/components/buyer/buyer-profile-menu";
+import { PropertyGallery } from "./property-gallery";
+import { PropertyLocationMap } from "./property-location-map";
+import { CATEGORY_LABELS, FURNISHING_LABELS, LISTING_TYPE_LABELS, formatDate, formatExtent, formatFloorArea, formatMonthlyRent, formatPrice, formatPricePerPerch } from "@/lib/property-format";
 import type { PropertyDetails } from "@/types/property";
+import "./property-details.css";
 
-interface PropertyDetailsViewProps {
-  property: PropertyDetails;
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  if (children == null || children === "") return null;
+  return <div className="property-spec"><dt>{label}</dt><dd>{children}</dd></div>;
 }
 
-interface PropertyFactProps {
-  label: string;
-  children: ReactNode;
-}
-
-function PropertyFact({ label, children }: PropertyFactProps) {
-  return (
-    <div className="rounded-lg bg-slate-50 p-4">
-      <dt className="text-sm text-slate-600">{label}</dt>
-      <dd className="mt-1 font-medium text-slate-900">
-        {children ?? "—"}
-      </dd>
-    </div>
-  );
-}
-
-export function PropertyDetailsView({
-  property,
-}: PropertyDetailsViewProps) {
-  const {
-    landDetails,
-    buildingDetails,
-    rentalDetails,
-  } = property;
-
-
-  const features = [...new Set(property.features)];
-
-  const displayPrice =
-    property.listingType === "RENT"
-      ? formatMonthlyRent(rentalDetails?.monthlyRent ?? property.price)
-      : formatPrice(property.price);
-
-  return (
-    <main className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
-        <nav aria-label="Breadcrumb" className="text-sm">
-          <ol className="flex flex-wrap items-center gap-2">
-            <li>
-              <Link
-                href="/buyer/dashboard"
-                className="text-teal-700 underline-offset-4 hover:underline"
-              >
-                Buyer Dashboard
-              </Link>
-            </li>
-            <li aria-hidden="true" className="text-slate-400">
-              /
-            </li>
-            <li aria-current="page">Property details</li>
-          </ol>
-        </nav>
-
-        <PropertyGallery
-             key={property.id}
-            images={property.images}
-            title={property.title}
-        />
-
-        <header className="flex flex-col gap-5 lg:flex-row lg:justify-between">
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              <Badge className="bg-teal-700 text-white">
-                {LISTING_TYPE_LABELS[property.listingType]}
-              </Badge>
-              <Badge variant="outline">
-                {CATEGORY_LABELS[property.category]}
-              </Badge>
-            </div>
-
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              {property.title}
-            </h1>
-
-            <p className="text-slate-600">
-              {property.location.address}
-            </p>
-          </div>
-
-          <div className="space-y-1 lg:text-right">
-            <p className="text-2xl font-semibold text-teal-800">
-              {displayPrice}
-            </p>
-
-            {property.listingType === "SALE" &&
-              landDetails?.pricePerPerch != null && (
-                <p className="text-sm text-slate-600">
-                  {formatPricePerPerch(landDetails.pricePerPerch)}
-                </p>
-              )}
-          </div>
-        </header>
-
-        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <div className="space-y-6">
-            <section aria-labelledby="property-overview-heading">
-              <Card>
-                <CardHeader>
-                  <h2
-                    id="property-overview-heading"
-                    className="text-lg font-semibold"
-                  >
-                    Overview
-                  </h2>
-                </CardHeader>
-                <CardContent>
-                  <p className="whitespace-pre-line leading-7 text-slate-600">
-                    {property.description.trim() ||
-                      "No description has been provided."}
-                  </p>
-                </CardContent>
-              </Card>
-            </section>
-
-            <section aria-labelledby="property-specifications-heading">
-              <Card>
-                <CardHeader>
-                  <h2
-                    id="property-specifications-heading"
-                    className="text-lg font-semibold"
-                  >
-                    Property specifications
-                  </h2>
-                </CardHeader>
-                <CardContent>
-                  <dl className="grid gap-3 sm:grid-cols-2">
-                    <PropertyFact label="Reference">
-                      {property.referenceCode}
-                    </PropertyFact>
-                    <PropertyFact label="District">
-                      {property.location.district}
-                    </PropertyFact>
-
-                    {landDetails && (
-                      <>
-                        <PropertyFact label="Land area">
-                          {formatExtent(landDetails.extentPerches)}
-                        </PropertyFact>
-                        <PropertyFact label="Deed type">
-                          {landDetails.deedType}
-                        </PropertyFact>
-                        <PropertyFact label="Road access">
-                          {landDetails.roadAccessFt == null
-                            ? "—"
-                            : `${landDetails.roadAccessFt} ft`}
-                        </PropertyFact>
-                        <PropertyFact label="Facing">
-                          {landDetails.facing}
-                        </PropertyFact>
-                      </>
-                    )}
-
-                    {buildingDetails && (
-                      <>
-                        <PropertyFact label="Bedrooms">
-                          {buildingDetails.bedrooms}
-                        </PropertyFact>
-                        <PropertyFact label="Bathrooms">
-                          {buildingDetails.bathrooms}
-                        </PropertyFact>
-                        <PropertyFact label="Floor area">
-                          {formatFloorArea(buildingDetails.floorAreaSqft)}
-                        </PropertyFact>
-                        <PropertyFact label="Floors">
-                          {buildingDetails.floors}
-                        </PropertyFact>
-                      </>
-                    )}
-
-                    {property.listingType === "RENT" && rentalDetails && (
-                      <>
-                        <PropertyFact label="Deposit">
-                          {formatPrice(rentalDetails.depositAmount)}
-                        </PropertyFact>
-                        <PropertyFact label="Available from">
-                          {formatDate(rentalDetails.availableFrom)}
-                        </PropertyFact>
-                        <PropertyFact label="Furnishing">
-                          {rentalDetails.furnishing
-                            ? FURNISHING_LABELS[rentalDetails.furnishing]
-                            : "—"}
-                        </PropertyFact>
-                      </>
-                    )}
-                  </dl>
-                </CardContent>
-              </Card>
-            </section>
-
-            <section aria-labelledby="property-features-heading">
-              <Card>
-                <CardHeader>
-                  <h2
-                    id="property-features-heading"
-                    className="text-lg font-semibold"
-                  >
-                    Features
-                  </h2>
-                </CardHeader>
-                <CardContent>
-                  {features.length > 0 ? (
-                    <ul className="grid list-disc gap-3 pl-5 text-slate-600 sm:grid-cols-2">
-                      {features.map((feature) => (
-                        <li key={feature}>{feature}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-slate-600">
-                      No features have been listed.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            </section>
-          </div>
-
-          <aside aria-labelledby="property-listing-heading">
-            <Card>
-              <CardHeader>
-                <h2
-                  id="property-listing-heading"
-                  className="text-lg font-semibold"
-                >
-                  Listing information
-                </h2>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <p className="text-sm text-slate-700">
-                  Reference <span className="font-semibold">{property.referenceCode}</span>
-                </p>
-                <p className="text-sm text-slate-600">
-                  Listed on {formatDate(property.createdAt)}
-                </p>
-              </CardContent>
-            </Card>
-          </aside>
-        </div>
-      </div>
-    </main>
-  );
+export function PropertyDetailsView({ property: p }: { property: PropertyDetails }) {
+  const { landDetails: land, buildingDetails: building, rentalDetails: rental, location } = p;
+  const [notice, setNotice] = useState("");
+  const rent = p.listingType === "RENT";
+  const price = rent ? formatMonthlyRent(rental?.monthlyRent ?? p.price) : formatPrice(p.price);
+  const facts = [
+    ...(land ? [{ icon: Ruler, value: formatExtent(land.extentPerches), label: "Land extent" }, { icon: House, value: `${(land.extentPerches * 272.25).toLocaleString("en-LK", { maximumFractionDigits: 0 })} sq ft`, label: "Approximate area" }] : []),
+    ...(building?.floorAreaSqft != null ? [{ icon: House, value: formatFloorArea(building.floorAreaSqft), label: "Floor area" }] : []),
+    ...(land?.roadAccessFt != null ? [{ icon: MapPin, value: `${land.roadAccessFt} ft road`, label: "Road access" }] : []),
+    ...(land?.deedType ? [{ icon: FileText, value: land.deedType, label: "Deed type" }] : []),
+  ];
+  async function share() {
+    try {
+      if (navigator.share) await navigator.share({ title: p.title, url: window.location.href });
+      else { await navigator.clipboard.writeText(window.location.href); setNotice("Property link copied."); }
+    } catch (e) { if (!(e instanceof DOMException && e.name === "AbortError")) setNotice("Copy the page address from your browser to share this listing."); }
+  }
+  return <div className="property-detail-page"><PublicHeader accountMenu={<BuyerProfileMenu />} /><main id="page" className="property-detail-wrap">
+    <nav className="property-crumbs" aria-label="Breadcrumb"><Link href="/">Home</Link><ChevronRight size={14} /><Link href="/buyer/dashboard">Buyer dashboard</Link><ChevronRight size={14} /><span>{location.district}</span><ChevronRight size={14} /><strong>{p.title}</strong></nav>
+    <PropertyGallery images={p.images} title={p.title} mosaic />
+    <header className="property-title-row"><div><div className="property-tags"><span>{LISTING_TYPE_LABELS[p.listingType]}</span><span>{CATEGORY_LABELS[p.category]}</span></div><h1>{p.title}</h1><p className="property-address"><MapPin size={16} />{location.address}, {location.district}</p></div><div className="property-price"><strong>{price}</strong>{!rent && land?.pricePerPerch != null && <p>{formatPricePerPerch(land.pricePerPerch)}</p>}<button className="property-outline" onClick={() => void share()}><Share2 size={15} />Share</button><p role="status">{notice}</p></div></header>
+    <div className="property-columns"><div className="property-content">
+      {facts.length > 0 && <div className="property-facts">{facts.map(({icon: Icon, value, label}) => <div key={label}><Icon size={21} /><strong>{value}</strong><span>{label}</span></div>)}</div>}
+      <nav className="property-section-nav" aria-label="Property sections"><a href="#overview">Overview</a><a href="#features">Features</a><a href="#location">Location</a></nav>
+      <section id="overview" className="property-section"><h2>Overview</h2><p className="property-description">{p.description.trim() || "No description has been provided."}</p><dl className="property-specs">
+        <Fact label="Type">{CATEGORY_LABELS[p.category]}</Fact><Fact label="Listing">{LISTING_TYPE_LABELS[p.listingType]}</Fact><Fact label="Reference">{p.referenceCode}</Fact>
+        {land && <><Fact label="Extent">{formatExtent(land.extentPerches)}</Fact><Fact label="Deed">{land.deedType}</Fact><Fact label="Facing">{land.facing}</Fact><Fact label="Road access">{land.roadAccessFt == null ? null : `${land.roadAccessFt} ft`}</Fact></>}
+        {building && <><Fact label="Bedrooms">{building.bedrooms}</Fact><Fact label="Bathrooms">{building.bathrooms}</Fact><Fact label="Floor area">{building.floorAreaSqft == null ? null : formatFloorArea(building.floorAreaSqft)}</Fact><Fact label="Floors">{building.floors}</Fact></>}
+        {rent && rental && <><Fact label="Deposit">{rental.depositAmount == null ? null : formatPrice(rental.depositAmount)}</Fact><Fact label="Available from">{rental.availableFrom ? formatDate(rental.availableFrom) : null}</Fact><Fact label="Furnishing">{rental.furnishing ? FURNISHING_LABELS[rental.furnishing] : null}</Fact></>}
+        <Fact label="Listed">{formatDate(p.createdAt)}</Fact>
+      </dl></section>
+      <section id="features" className="property-section"><h2>Features & amenities</h2>{p.features.length ? <ul className="property-feature-list">{[...new Set(p.features)].map(f => <li key={f}><Check size={16} />{f}</li>)}</ul> : <p className="property-muted">No additional features have been listed.</p>}</section>
+      <section id="location" className="property-section"><h2>Location</h2><p className="property-muted">{location.address}, {location.district}</p><PropertyLocationMap location={location} /><div className="property-map-footer"><span><MapPin size={14} />{location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}</span><a href={`https://www.google.com/maps/search/?api=1&query=${location.latitude},${location.longitude}`} target="_blank" rel="noopener noreferrer">Open directions<ArrowUpRight size={14} /></a></div></section>
+    </div><aside className="property-summary"><div className="property-summary-card"><span className="property-eyebrow">LISTING INFORMATION</span><h2>Your next place starts here.</h2><p>Explore the photos, property details, and location before planning your next step.</p><dl><Fact label="Property reference">{p.referenceCode}</Fact><Fact label="District">{location.district}</Fact><Fact label="Listed on">{formatDate(p.createdAt)}</Fact></dl><Link className="property-outline" href="/buyer/dashboard"><ArrowLeft size={16} />Back to properties</Link></div></aside></div>
+  </main><PublicFooter /></div>;
 }

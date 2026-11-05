@@ -8,7 +8,7 @@
  * The seller is the signed-in user: requests send the session cookies, and write
  * requests carry the CSRF token (see `lib/auth/session.ts`).
  */
-import { csrfHeader, SERVER_URL, ServerUnreachableError } from "@/lib/auth/session";
+import { csrfHeader, getSessionUser, SERVER_URL, ServerUnreachableError } from "@/lib/auth/session";
 
 export type PropertyCategory = "LAND" | "HOUSE" | "APARTMENT" | "COMMERCIAL";
 export type ListingType = "SALE" | "RENT";
@@ -57,6 +57,23 @@ export interface SellerProperty extends SellerPropertyRequest {
   reviewedAt?: string | null;
 }
 
+export async function uploadImages(files: File[]): Promise<string[]> {
+  if (files.length === 0) return [];
+  const form = new FormData();
+  files.forEach((file) => form.append("files", file));
+  let csrf = await csrfHeader();
+  let res = await fetch(`${API_BASE}/uploads/images`, { method: "POST", body: form, credentials: "include", headers: csrf });
+  if (res.status === 401) {
+    const refreshed = await getSessionUser();
+    if (!refreshed) throw new SellerApiError("Your session has ended. Please sign in again.", 401);
+    csrf = await csrfHeader();
+    res = await fetch(`${API_BASE}/uploads/images`, { method: "POST", body: form, credentials: "include", headers: csrf });
+  }
+  const body = await res.json().catch(() => null);
+  if (!res.ok) throw new SellerApiError(body?.message ?? body?.detail ?? `Image upload failed (${res.status})`, res.status);
+  return Array.isArray(body?.urls) ? body.urls : [];
+}
+
 /** Error returned by the API (RFC 7807 problem detail). */
 export class SellerApiError extends Error {
   constructor(
@@ -75,15 +92,24 @@ const MOCK_OWNER_ID = "mock-seller";
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const method = (init.method ?? "GET").toUpperCase();
-  let res: Response;
-  try {
+  const send = async () => {
     const csrf = method === "GET" ? {} : await csrfHeader();
-    res = await fetch(`${API_BASE}/seller/properties${path}`, {
+    return fetch(`${API_BASE}/seller/properties${path}`, {
       ...init,
       credentials: "include",
       headers: { "Content-Type": "application/json", ...csrf, ...init.headers },
     });
+  };
+  let res: Response;
+  try {
+    res = await send();
+    if (res.status === 401) {
+      const refreshed = await getSessionUser();
+      if (!refreshed) throw new SellerApiError("Your session has ended. Please sign in again.", 401);
+      res = await send();
+    }
   } catch (e) {
+    if (e instanceof SellerApiError) throw e;
     if (e instanceof ServerUnreachableError || e instanceof TypeError) {
       throw new SellerApiError("Could not reach the server. Is the backend running on port 8082?", 0);
     }

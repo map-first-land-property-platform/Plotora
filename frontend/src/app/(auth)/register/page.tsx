@@ -50,37 +50,35 @@ export default function RegisterPage() {
   async function onSubmit(values: FormValues) {
     setServerError(null);
     try {
-feature/authentication
       await api("/api/auth/register", {
-  method: "POST",
-  body: JSON.stringify({
-    fullName: values.fullName,
-    email: values.email,
-    phone: values.phone,
-    password: values.password,
-    role: values.role,
-  }),
-});
+        method: "POST",
+        body: JSON.stringify({
+          fullName: values.fullName,
+          email: values.email,
+          phone: values.phone,
+          password: values.password,
+          role: values.role,
+        }),
+      });
 
-const user = await api<{ roles: string[] }>("/api/auth/login", {
-  method: "POST",
-  body: JSON.stringify({
-    email: values.email,
-    password: values.password,
-    rememberMe: false,
-  }),
-});
+      const user = await api<{ roles: string[] }>("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          email: values.email,
+          password: values.password,
+          rememberMe: false,
+        }),
+      });
 
-router.push(
-  user.roles.includes("ADMIN")
-    ? "/admin/listings"
-    : user.roles.includes("SELLER")
-      ? "/seller"
-      : user.roles.includes("BUYER")
-        ? "/buyer/dashboard"
-        : "/"
-);
- develop
+      router.push(
+        user.roles.includes("ADMIN")
+          ? "/admin/listings"
+          : user.roles.includes("SELLER")
+            ? "/seller"
+            : user.roles.includes("BUYER")
+              ? "/buyer/dashboard"
+              : "/"
+      );
       router.refresh();
     } catch (e) {
       if (e instanceof ApiError) {
@@ -114,8 +112,10 @@ router.push(
             </div>
             {errors.role && <div className="field-error" role="alert">{errors.role.message}</div>}
           </div>
-          <div className="form-grid">
-            <TextField label="Full name" required autoComplete="name" error={errors.fullName?.message} {...register("fullName")} />
+          <div className="form-grid registration-fields">
+            <div className="wide">
+              <TextField label="Full name" required autoComplete="name" error={errors.fullName?.message} {...register("fullName")} />
+            </div>
             <TextField label="Email" required type="email" autoComplete="email" error={errors.email?.message} {...register("email")} />
             <TextField label="Mobile number" required type="tel" autoComplete="tel" placeholder="+94 77 123 4567" error={errors.phone?.message} {...register("phone")} />
             <div>

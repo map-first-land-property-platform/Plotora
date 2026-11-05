@@ -56,7 +56,12 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   if (me.ok) return (await me.json()) as SessionUser;
   if (me.status !== 401) throw new Error(`Could not check your sign-in (${me.status}).`);
 
-  const refreshed = await send(`${SERVER_URL}/api/auth/refresh`, { method: "POST", headers: await csrfHeader() });
+  // CSRF tokens can be rotated independently of the access token. Retry the
+  // refresh once with a newly fetched token before treating the session as gone.
+  let refreshed = await send(`${SERVER_URL}/api/auth/refresh`, { method: "POST", headers: await csrfHeader() });
+  if (!refreshed.ok) {
+    refreshed = await send(`${SERVER_URL}/api/auth/refresh`, { method: "POST", headers: await csrfHeader() });
+  }
   return refreshed.ok ? ((await refreshed.json()) as SessionUser) : null;
 }
 
