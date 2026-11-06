@@ -23,6 +23,7 @@ ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL \
 
 COPY --from=dependencies /app/node_modules ./node_modules
 COPY . .
+ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN npm run build
 
 FROM node:24-alpine AS runner
