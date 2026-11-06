@@ -32,8 +32,8 @@ public record PropertyRequest(
         @NotBlank @Size(max = 300) String address,
         @NotBlank @Size(max = 100) String district,
         // Sri Lanka bounding box
-        @NotNull @DecimalMin("5.8") @DecimalMax("10.0") Double latitude,
-        @NotNull @DecimalMin("79.5") @DecimalMax("82.0") Double longitude,
+        @NotNull @DecimalMin(value = "5.9", message = "Latitude must be at least 5.9° N") @DecimalMax(value = "9.9", message = "Latitude must be at most 9.9° N") Double latitude,
+        @NotNull @DecimalMin(value = "79.5", message = "Longitude must be at least 79.5° E") @DecimalMax(value = "81.9", message = "Longitude must be at most 81.9° E") Double longitude,
 
         @Positive @Digits(integer = 8, fraction = 2) BigDecimal extentPerches,
         @Size(max = 50) String deedType,

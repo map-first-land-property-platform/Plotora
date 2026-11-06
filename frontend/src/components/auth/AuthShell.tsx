@@ -3,7 +3,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Map, Moon, ShieldCheck, Sun } from "lucide-react";
-import { ReactNode, useState } from "react";
+import { ReactNode, useSyncExternalStore } from "react";
+import "./auth-theme.css";
+
+function subscribeTheme(onChange: () => void) {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => observer.disconnect();
+}
 
 type Props = {
   image?: string;
@@ -20,9 +27,7 @@ export default function AuthShell({
   variant = "login",
   children,
 }: Props) {
-  const [dark, setDark] = useState(() =>
-    typeof document !== "undefined" && document.documentElement.dataset.theme === "dark"
-  );
+  const dark = useSyncExternalStore(subscribeTheme, () => document.documentElement.dataset.theme === "dark", () => false);
 
   function toggleTheme() {
     const next = dark ? "light" : "dark";
@@ -32,7 +37,6 @@ export default function AuthShell({
     } catch {
       // Storage may be unavailable in private browsing.
     }
-    setDark(!dark);
   }
 
   return (
@@ -69,8 +73,8 @@ export default function AuthShell({
       <div className="auth-side">
         <div className="auth-top">
           <Link className="back-link" href="/">Back to site</Link>
-          <button className="btn btn-ghost btn-icon" aria-label="Toggle colour theme" title="Toggle theme" onClick={toggleTheme}>
-            {dark ? <Moon size={18} /> : <Sun size={18} />}
+          <button type="button" className="btn btn-ghost btn-icon" aria-label={dark ? "Switch to light mode" : "Switch to dark mode"} title={dark ? "Light mode" : "Dark mode"} onClick={toggleTheme}>
+            {dark ? <Sun size={18} /> : <Moon size={18} />}
           </button>
         </div>
         <main id="page" tabIndex={-1} className="auth-main">

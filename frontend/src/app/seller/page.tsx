@@ -13,6 +13,7 @@ import {
   getMyListings,
   SellerApiError,
   submitForReview,
+  uploadImages,
   updateListing,
   type ListingStatus,
   type PropertyCategory,
@@ -92,7 +93,7 @@ const fmt = (n: number) => {
 const emptyForm = {
   mode: "Sell" as Mode, type: "Land" as PType, title: "", description: "",
   district: "", address: "", latitude: "", longitude: "",
-  price: "", extentPerches: "", floorAreaSqft: "", bedrooms: "", bathrooms: "", files: [] as string[],
+  price: "", extentPerches: "", floorAreaSqft: "", bedrooms: "", bathrooms: "", files: [] as File[], imageUrls: [] as string[],
 };
 type Form = typeof emptyForm;
 
@@ -116,6 +117,7 @@ function toRequest(f: Form): SellerPropertyRequest {
     floorAreaSqft: f.type === "Land" ? null : numOrNull(f.floorAreaSqft),
     bedrooms: rooms ? numOrNull(f.bedrooms) : null,
     bathrooms: rooms ? numOrNull(f.bathrooms) : null,
+    imageUrls: f.imageUrls,
   };
 }
 
@@ -135,7 +137,7 @@ function toForm(p: SellerProperty): Form {
     floorAreaSqft: s(p.floorAreaSqft),
     bedrooms: s(p.bedrooms),
     bathrooms: s(p.bathrooms),
-    files: [],
+    files: [], imageUrls: p.imageUrls ?? [],
   };
 }
 
@@ -150,7 +152,8 @@ function stepError(step: number, f: Form): string {
     if (!f.address.trim()) return "Add the address or nearest landmark.";
     const lat = Number(f.latitude), lng = Number(f.longitude);
     if (!f.latitude || !f.longitude || Number.isNaN(lat) || Number.isNaN(lng)) return "Add the latitude and longitude of the property.";
-    if (lat < 5.8 || lat > 10 || lng < 79.5 || lng > 82) return "The location must be inside Sri Lanka (latitude 5.8–10, longitude 79.5–82).";
+    if (!Number.isFinite(lat) || lat < 5.9 || lat > 9.9) return "Enter a Sri Lanka latitude between 5.9 and 9.9° N (for example, 6.9271).";
+    if (!Number.isFinite(lng) || lng < 79.5 || lng > 81.9) return "Enter a Sri Lanka longitude between 79.5 and 81.9° E (for example, 79.8612).";
   }
   if (step === 2) {
     if (!(Number(f.price) > 0)) return "Enter a valid price to continue.";
@@ -188,6 +191,7 @@ const P: Record<string, string> = {
   menu: "M4 6h16M4 12h16M4 18h16",
   close: "M18 6 6 18M6 6l12 12",
   chev: "m9 6 6 6-6 6",
+  logout: "M9 6H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2M14 8l4 4-4 4M18 12H9",
   spark: "M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z",
   home: "M3 10l9-7 9 7M5 9v12h14V9M9 21v-7h6v7",
   key: "M14 10a4 4 0 1 0-3.5 4L20 14v3h-3v3h-3v-3",
@@ -299,17 +303,28 @@ export default function SellerPage() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<Form>(emptyForm);
   const [err, setErr] = useState("");
-  const [jump, setJump] = useState("");
-  const jumpRef = useRef<HTMLInputElement>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountMenu = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const k = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); jumpRef.current?.focus(); }
-    };
     const c = () => setMenu(null);
-    window.addEventListener("keydown", k);
     window.addEventListener("click", c);
-    return () => { window.removeEventListener("keydown", k); window.removeEventListener("click", c); };
+    return () => { window.removeEventListener("click", c); };
+  }, []);
+
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (!accountMenu.current?.contains(event.target as Node)) setAccountOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountOpen(false);
+    };
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("keydown", escape);
+    };
   }, []);
 
   const load = useCallback(async () => {
@@ -354,7 +369,9 @@ export default function SellerPage() {
   }
 
   async function handleSignOut() {
-    try { await signOut(); } finally { router.replace("/login"); }
+    try { await signOut(); } finally {
+      window.location.replace("/");
+    }
   }
 
   const count = (s: string) => (s === "All" ? items.length : items.filter((i) => i.status === s).length);
@@ -405,15 +422,38 @@ export default function SellerPage() {
     }
     setSaving(true); setErr("");
     try {
-      const data = toRequest(form);
+      let uploadedUrls: string[] = [];
+      try {
+        uploadedUrls = await uploadImages(form.files);
+      } catch (e) {
+        setErr(e instanceof SellerApiError ? `Image upload failed (${e.status}): ${e.message}` : "Image upload failed. Please try again.");
+        return;
+      }
+      const data = toRequest({ ...form, imageUrls: [...form.imageUrls, ...uploadedUrls] });
       let saved = editId !== null ? await updateListing(editId, data) : await createListing(data);
-      if (submit) saved = await submitForReview(saved.id);
+      if (submit) {
+        try {
+          saved = await submitForReview(saved.id);
+        } catch (e) {
+          // The listing has already been persisted. Keep it visible as a draft so
+          // a transient session/API failure cannot discard the seller's work.
+          const row = toListing(saved);
+          setItems((c) => (editId !== null ? c.map((x) => (x.id === editId ? row : x)) : [row, ...c]));
+          setView("listings");
+          setEditId(null);
+          setErr(e instanceof SellerApiError ? `Saved as a draft, but approval submission failed: ${e.message}` : "Saved as a draft, but approval submission failed.");
+          return;
+        }
+      }
       const row = toListing(saved);
       setItems((c) => (editId !== null ? c.map((x) => (x.id === editId ? row : x)) : [row, ...c]));
       setView("listings"); setEditId(null);
     } catch (e) {
-      if (e instanceof SellerApiError && e.status === 401) { router.replace("/login"); return; }
-      setErr(e instanceof SellerApiError ? e.message : "Could not save the listing. Please try again.");
+      // Keep the wizard open on a save failure so the seller can retry without
+      // losing the entered property data or selected files.
+      setErr(e instanceof SellerApiError && e.status === 401
+        ? "Property save returned 401 Unauthorized. Please sign in again, then retry."
+        : e instanceof SellerApiError ? e.message : "Could not save the listing. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -422,15 +462,6 @@ export default function SellerPage() {
     const t = `${form.type} for ${form.mode === "Sell" ? "sale" : "rent"}${form.district ? ` in ${form.district}` : ""}. Describe access roads, utilities, nearby facilities and deed or survey details.`;
     setForm({ ...form, description: form.description || t });
   }
-  function doJump(e: React.FormEvent) {
-    e.preventDefault();
-    const t = jump.toLowerCase();
-    if (t.includes("add") || t.includes("new")) newListing();
-    else if (t.includes("list")) go("listings");
-    else if (t.includes("dash")) go("dashboard");
-    setJump("");
-  }
-
   const crumb = view === "form" ? (editing ? ["My Listings", "Edit"] : ["My Listings", "Add Property"])
     : [view === "dashboard" ? "Dashboard" : "My Listings"];
 
@@ -494,25 +525,48 @@ export default function SellerPage() {
               </span>
             ))}
           </nav>
-          <form onSubmit={doJump} className="relative ml-auto hidden w-60 md:block">
-            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"><Ic n="search" s={15} /></span>
-            <input ref={jumpRef} value={jump} onChange={(e) => setJump(e.target.value)} placeholder="Jump to page…" aria-label="Jump to page"
-              className="w-full rounded-lg border border-[#dfe7f1] py-1.5 pl-8 pr-14 text-xs outline-none focus:border-[#0b8579]" />
-            <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-slate-200 px-1 text-[10px] text-slate-400">Ctrl K</kbd>
-          </form>
-          <div className="ml-auto flex items-center gap-3 text-slate-600 md:ml-0">
-            <button type="button" aria-label="Search" className="md:hidden"><Ic n="search" /></button>
+          <div className="ml-auto flex items-center gap-3 text-slate-600">
             <button type="button" disabled aria-label="Messages (coming soon)" title="Messages – coming soon" className="rounded-lg p-1.5 text-slate-400"><Ic n="chat" /></button>
             <button type="button" disabled aria-label="Notifications (coming soon)" title="Notifications – coming soon" className="rounded-lg p-1.5 text-slate-400"><Ic n="bell" /></button>
             <button type="button" onClick={toggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               title={theme === "dark" ? "Light mode" : "Dark mode"} className="rounded-lg p-1.5 hover:bg-slate-100">
               <Ic n={theme === "dark" ? "sun" : "moon"} />
             </button>
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-400 text-[11px] font-bold text-white">{user ? initials(user.fullName) : ""}</span>
-              <div className="hidden text-xs leading-tight sm:block"><p className="font-semibold text-[#0f2038]">{user ? firstName(user.fullName) : ""}</p><p className="text-[#6c7a8f]">Seller</p></div>
-              <button type="button" onClick={() => void handleSignOut()} className="ml-1 rounded-md border border-[#dfe7f1] px-2 py-1 text-[11px] font-semibold text-[#6c7a8f] hover:bg-slate-50">Sign out</button>
-            </div>
+            {user && (
+              <div className="relative" ref={accountMenu}>
+                <button
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={accountOpen}
+                  onClick={() => setAccountOpen((open) => !open)}
+                  className="flex h-11 items-center gap-2 rounded-full border border-[#e8edf0] bg-white py-1 pl-1 pr-2.5 text-left transition hover:border-[#c9d8dc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#13816f]/30"
+                >
+                  <span aria-hidden="true" className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-orange-400 text-[13px] font-bold tracking-[0.02em] text-white">{initials(user.fullName)}</span>
+                  <span className="hidden min-w-0 sm:block">
+                    <span className="block max-w-40 truncate text-[13px] font-semibold leading-4 text-[#182b35]">{firstName(user.fullName)}</span>
+                    <span className="block text-xs leading-4 text-[#697b86]">Seller</span>
+                  </span>
+                  <Ic n="chev" s={15} />
+                </button>
+                {accountOpen && (
+                  <div role="menu" className="absolute right-0 top-[calc(100%+8px)] z-30 w-52 rounded-xl border border-[#e8edf0] bg-white p-1.5 shadow-[0_12px_30px_rgba(24,43,53,0.14)]">
+                    <div className="border-b border-[#edf1f3] px-3 py-2">
+                      <p className="truncate text-sm font-semibold text-[#182b35]">{user.fullName}</p>
+                      <p className="truncate text-xs text-[#697b86]">{user.email}</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => void handleSignOut()}
+                      className="mt-1 flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold text-[#b23a31] transition hover:bg-[#fff3f1]"
+                    >
+                      <Ic n="logout" s={16} />
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </header>
 
@@ -780,11 +834,11 @@ export default function SellerPage() {
                       <Field label="Address or landmark" req>
                         <input className={inp} maxLength={300} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Street, town or nearest junction" />
                       </Field>
-                      <Field label="Latitude" req hint="In Google Maps, right-click the spot and click the coordinates to copy them.">
-                        <input type="number" step="any" inputMode="decimal" className={inp} value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} placeholder="e.g. 6.0329" />
+                      <Field label="Latitude" req hint="Sri Lanka: 5.9–9.9° N. In Google Maps, copy the first coordinate as latitude.">
+                        <input type="number" min="5.9" max="9.9" step="any" inputMode="decimal" className={inp} value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} placeholder="e.g. 6.9271" />
                       </Field>
-                      <Field label="Longitude" req>
-                        <input type="number" step="any" inputMode="decimal" className={inp} value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} placeholder="e.g. 80.2168" />
+                      <Field label="Longitude" req hint="Sri Lanka: 79.5–81.9° E. Copy the second coordinate as longitude. Use decimal degrees.">
+                        <input type="number" min="79.5" max="81.9" step="any" inputMode="decimal" className={inp} value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} placeholder="e.g. 79.8612" />
                       </Field>
                     </div>
                     <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-[#cfd8e3] bg-white px-4 text-center text-xs text-[#6c7a8f]">
@@ -816,12 +870,12 @@ export default function SellerPage() {
                   </div>
                 )}
                 {step === 3 && (
-                  <Field label="Photos & documents" hint="Photo and document upload will be connected in a later sprint. Selected files are not uploaded yet.">
+                  <Field label="Photos & documents" hint="JPEG, PNG, or WebP images up to 10 MB each.">
                     <label className="flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed border-[#cfd8e3] bg-white px-4 py-8 text-xs text-[#6c7a8f] hover:bg-slate-50">
                       <Ic n="upload" s={22} />Choose files
-                      <input type="file" multiple className="sr-only" onChange={(e) => setForm({ ...form, files: [...form.files, ...Array.from(e.target.files ?? []).map((f) => f.name)] })} />
+                      <input type="file" accept="image/jpeg,image/png,image/webp" multiple className="sr-only" onChange={(e) => setForm({ ...form, files: [...form.files, ...Array.from(e.target.files ?? [])] })} />
                     </label>
-                    {form.files.length > 0 && <ul className="mt-3 space-y-1 text-xs">{form.files.map((f, i) => <li key={i} className="rounded-md bg-white px-3 py-1.5 ring-1 ring-[#e3e9f0]">{f}</li>)}</ul>}
+                    {form.files.length > 0 && <ul className="mt-3 space-y-1 text-xs">{form.files.map((f, i) => <li key={i} className="rounded-md bg-white px-3 py-1.5 ring-1 ring-[#e3e9f0]">{f.name}</li>)}</ul>}
                   </Field>
                 )}
                 {step === 4 && (

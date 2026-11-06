@@ -2,9 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState, type ReactNode } from "react";
-import { ArrowRight, BedDouble, House, LayoutDashboard, Map as MapIcon, MapPin, Ruler, Search, TriangleAlert, type LucideIcon } from "lucide-react";
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { ArrowRight, BedDouble, Bell, ChevronDown, House, LayoutDashboard, LogOut, Map as MapIcon, MapPin, MessageCircle, Moon, Ruler, Sun, TriangleAlert, type LucideIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
+import "./buyer-portal.css";
 
 import { ApiError, api } from "@/lib/api";
 import {
@@ -27,6 +28,16 @@ interface BuyerUser {
 
 interface BuyerPortalProps {
   view: PortalView;
+}
+
+function subscribeTheme(onChange: () => void): () => void {
+  const observer = new MutationObserver(onChange);
+  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  return () => observer.disconnect();
+}
+
+function readTheme(): "light" | "dark" {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
 }
 
 function initials(fullName: string): string {
@@ -149,11 +160,15 @@ function ListingCards({ properties }: { properties: PropertyDetails[] }) {
 
 export function BuyerPortal({ view }: BuyerPortalProps) {
   const router = useRouter();
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, () => "light");
   const [user, setUser] = useState<BuyerUser | null>(null);
   const [properties, setProperties] = useState<PropertyDetails[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const accountMenu = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let active = true;
@@ -184,6 +199,37 @@ export function BuyerPortal({ view }: BuyerPortalProps) {
       });
     return () => { active = false; };
   }, [router, retryKey]);
+
+  useEffect(() => {
+    const close = (event: MouseEvent) => {
+      if (!accountMenu.current?.contains(event.target as Node)) setAccountOpen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAccountOpen(false);
+    };
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("keydown", escape);
+    };
+  }, []);
+
+  async function signOut() {
+    setSigningOut(true);
+    try {
+      await api("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.replace("/");
+      router.refresh();
+    }
+  }
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try { window.localStorage.setItem("plotora-theme", next); } catch { /* storage unavailable */ }
+  }
 
   const isLoading = properties === null && !loadError && !accessDenied;
   const dashboard = view === "dashboard";
@@ -229,10 +275,10 @@ export function BuyerPortal({ view }: BuyerPortalProps) {
   const listingCount = properties?.length ?? 0;
 
   return (
-    <div className="min-h-screen bg-[#f6f8fa] text-[#1b303a]">
+    <div className="buyer-portal min-h-screen bg-[#f6f8fa] text-[#1b303a]">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-[246px] flex-col border-r border-[#e4eaee] bg-white md:flex">
         <div className="flex h-[82px] items-center border-b border-[#e7ecef] px-7">
-          <Image src="/plotora-logo.png" alt="Plotora — Map first. Own smarter." width={160} height={60} priority className="h-auto w-[145px]" />
+          <Image src="/assets/images/plotora-logo-transparent.png" alt="Plotora — Map first. Own smarter." width={520} height={140} priority className="h-auto w-[145px]" />
         </div>
         <div className="mx-3 mt-4 rounded-xl border border-[#e2e9ed] bg-[#f9fbfc] p-3">
           <div className="flex items-center gap-3">
@@ -243,7 +289,6 @@ export function BuyerPortal({ view }: BuyerPortalProps) {
         <nav aria-label="Buyer navigation" className="mt-7 px-3">
           <p className="px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#8798a1]">Overview</p>
           <PortalNavLink href="/buyer/dashboard" active={dashboard} label="Dashboard" icon={LayoutDashboard} />
-          <PortalNavLink href="/properties" active={!dashboard} label="Explore properties" icon={Search} />
         </nav>
       </aside>
 
@@ -254,17 +299,54 @@ export function BuyerPortal({ view }: BuyerPortalProps) {
             <span aria-hidden="true" className="text-[#a2b0b6]">/</span>
             <span aria-current="page" className="font-semibold text-[#263c46]">{pageTitle}</span>
           </nav>
-          {user && (
-            <div className="flex items-center gap-2.5 rounded-full border border-[#e7ecef] py-1 pl-1 pr-3">
-              <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#2aa580] text-sm font-bold text-white">{initials(user.fullName)}</span>
-              <span className="hidden sm:block"><span className="block max-w-40 truncate text-sm font-semibold">{user.fullName}</span><span className="block text-xs text-[#71848e]">Buyer</span></span>
+          <div className="ml-auto flex items-center gap-4 text-slate-600">
+            <button type="button" disabled aria-label="Messages (coming soon)" title="Messages – coming soon" className="rounded-lg p-1.5 text-slate-400"><MessageCircle size={18} /></button>
+            <button type="button" disabled aria-label="Notifications (coming soon)" title="Notifications – coming soon" className="rounded-lg p-1.5 text-slate-400"><Bell size={18} /></button>
+            <button type="button" onClick={toggleTheme} aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              title={theme === "dark" ? "Light mode" : "Dark mode"} className="rounded-lg p-1.5 hover:bg-slate-100">
+              {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            {user && (
+              <div className="relative" ref={accountMenu}>
+              <button
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded={accountOpen}
+                onClick={() => setAccountOpen((open) => !open)}
+                className="flex h-11 items-center gap-2 rounded-full border border-[#e8edf0] bg-white py-1 pl-1 pr-2.5 text-left transition hover:border-[#c9d8dc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#13816f]/30"
+              >
+                <span aria-hidden="true" className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-orange-400 text-[13px] font-bold tracking-[0.02em] text-white">{initials(user.fullName)}</span>
+                <span className="hidden min-w-0 sm:block">
+                  <span className="block max-w-40 truncate text-[13px] font-semibold leading-4 text-[#182b35]">{firstName}</span>
+                  <span className="block text-xs leading-4 text-[#697b86]">Buyer / Renter</span>
+                </span>
+                <ChevronDown aria-hidden="true" size={15} className={`ml-1 text-[#697b86] transition-transform ${accountOpen ? "rotate-0" : "-rotate-90"}`} />
+              </button>
+              {accountOpen && (
+                <div role="menu" className="absolute right-0 top-[calc(100%+8px)] z-30 w-52 rounded-xl border border-[#e8edf0] bg-white p-1.5 shadow-[0_12px_30px_rgba(24,43,53,0.14)]">
+                  <div className="border-b border-[#edf1f3] px-3 py-2">
+                    <p className="truncate text-sm font-semibold text-[#182b35]">{user.fullName}</p>
+                    <p className="truncate text-xs text-[#697b86]">{user.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={signingOut}
+                    onClick={() => void signOut()}
+                    className="buyer-signout mt-1 flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-sm font-semibold transition disabled:cursor-wait disabled:opacity-60"
+                  >
+                    <LogOut aria-hidden="true" size={16} color="#dc2626" />
+                    <span style={{ color: "#dc2626" }}>{signingOut ? "Signing out..." : "Sign out"}</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
+          </div>
         </header>
 
         <nav aria-label="Buyer navigation" className="flex gap-2 border-b border-[#e4eaee] bg-white px-4 py-2 md:hidden">
           <MobileNavLink href="/buyer/dashboard" active={dashboard}>Dashboard</MobileNavLink>
-          <MobileNavLink href="/properties" active={!dashboard}>Explore properties</MobileNavLink>
         </nav>
 
         <main className="mx-auto max-w-[1480px] px-4 py-7 sm:px-6 lg:px-8 lg:py-9">

@@ -39,6 +39,8 @@ services:
       MAIL_PORT: 1025
       MAIL_SMTP_AUTH: "false"
       MAIL_SMTP_STARTTLS: "false"
+      UPLOAD_DIR: /app/uploads
+      JWT_ACCESS_MINUTES: 720
     ports:
       - "127.0.0.1:8082:8082"
     depends_on:
@@ -48,13 +50,14 @@ services:
         condition: service_started
     networks:
       - plotora_network
+    volumes:
+      - plotora_uploads:/app/uploads
 
   mailpit:
     image: axllent/mailpit:latest
     container_name: plotora-mailpit
     restart: unless-stopped
     ports:
-      - "127.0.0.1:1026:1025"
       - "127.0.0.1:8025:8025"
     networks:
       - plotora_network
@@ -62,6 +65,8 @@ services:
 volumes:
   plotora_postgres_data:
     name: plotora_postgres_data
+  plotora_uploads:
+    name: plotora_uploads
 
 networks:
   plotora_network:

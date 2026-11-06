@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import type { PropertyImage } from "@/types/property";
 interface PropertyGalleryProps {
   images: readonly PropertyImage[];
   title: string;
+  mosaic?: boolean;
 }
 
 interface GalleryImageProps {
@@ -162,6 +163,7 @@ function PropertyGalleryContent({
 export function PropertyGallery({
   images,
   title,
+  mosaic = false,
 }: PropertyGalleryProps) {
   // Preserve the supplied data while applying its display order.
   const orderedImages = [...images].sort(
@@ -174,10 +176,22 @@ export function PropertyGallery({
   );
 
   return (
+    mosaic ? <PropertyMosaic images={orderedImages} title={title} /> :
     <PropertyGalleryContent
       key={galleryKey}
       images={orderedImages}
       title={title}
     />
   );
+}
+
+function PropertyMosaic({ images, title }: PropertyGalleryProps) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  return <section aria-label="Property photos" className="property-mosaic-wrap">
+    <div className={`property-mosaic ${images.length <= 1 ? "property-mosaic-single" : ""}`} data-photo-count={Math.min(images.length, 5)}>
+      {images.length ? images.slice(0, 5).map((img, index) => <button key={`${img.url}:${index}`} type="button" onClick={() => dialog.current?.showModal()} aria-label={`Open property photos, photo ${index + 1}`}><GalleryImage image={img} alt={img.alt || title} sizes={index === 0 ? "(min-width: 800px) 600px, 100vw" : "300px"} loading={index === 0 ? "eager" : "lazy"} /></button>) : <div className="property-no-photos">No photos have been provided for this property.</div>}
+    </div>
+    {images.length > 0 && <button type="button" className="property-all-photos" onClick={() => dialog.current?.showModal()}>All photos · {images.length}</button>}
+    <dialog ref={dialog} className="property-gallery-dialog"><button type="button" className="property-outline" onClick={() => dialog.current?.close()}>Close photos</button><PropertyGalleryContent images={images} title={title} /></dialog>
+  </section>;
 }

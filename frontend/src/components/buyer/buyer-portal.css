@@ -1,0 +1,60 @@
+/* Restore portal utilities after the public site's unlayered element resets. */
+.buyer-portal.buyer-portal :is(button, a, a:hover, h1, h2, h3, p, ul, img) {
+  all: revert-layer;
+}
+
+.buyer-portal.buyer-portal .buyer-signout {
+  background-color: transparent;
+  color: #dc2626;
+}
+
+.buyer-portal.buyer-portal .buyer-signout:hover {
+  background-color: #fff3f1;
+}
+
+:root[data-theme="dark"] .buyer-portal.buyer-portal .buyer-signout {
+  background-color: transparent;
+  color: var(--danger);
+}
+
+:root[data-theme="dark"] .buyer-portal.buyer-portal .buyer-signout:hover {
+  background-color: color-mix(in srgb, var(--danger) 15%, var(--danger-bg));
+}
+
+:root[data-theme="dark"] .buyer-portal img[alt^="Plotora"] {
+  filter: brightness(0) invert(1);
+}
+
+:root[data-theme="dark"] .buyer-portal {
+  color-scheme: dark;
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .buyer-portal .bg-white {
+  background-color: var(--surface);
+}
+
+:root[data-theme="dark"] .buyer-portal :is(.bg-\[\#f9fbfc\], .bg-\[\#fbfdfd\], .bg-\[\#f4f8f7\], .hover\:bg-slate-100:hover) {
+  background-color: var(--surface-2);
+}
+
+:root[data-theme="dark"] .buyer-portal :is(.bg-\[\#e5f3ef\], .bg-\[\#eff7f5\], .bg-\[\#e8f4f1\], .bg-\[\#e8eff0\]) {
+  background-color: var(--brand-50);
+}
+
+:root[data-theme="dark"] .buyer-portal [class*="border-[#"] {
+  border-color: var(--line);
+}
+
+:root[data-theme="dark"] .buyer-portal :is(.text-\[\#182b35\], .text-\[\#1b303a\], .text-\[\#203842\], .text-\[\#263c46\]) {
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .buyer-portal :is(.text-slate-600, [class*="text-[#4"], [class*="text-[#5"], [class*="text-[#6"], [class*="text-[#7"], [class*="text-[#8"], .text-\[\#a2b0b6\]) {
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .buyer-portal :is(.text-\[\#0c6256\], .text-\[\#117c6b\], .text-\[\#12806e\], .text-\[\#176f62\]) {
+  color: var(--brand);
+}

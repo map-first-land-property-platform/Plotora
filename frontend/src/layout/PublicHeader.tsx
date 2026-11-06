@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Icon from '../components/Icon';
 import Brand from './Brand';
 import MobileDrawer from './MobileDrawer';
@@ -18,9 +18,10 @@ export const THEME_KEY = 'plotora-theme';
 export interface PublicHeaderProps {
   signInHref?: string;
   onSearchClick?: () => void;
+  accountMenu?: ReactNode;
 }
 
-export default function PublicHeader({ signInHref = '/login', onSearchClick }: PublicHeaderProps) {
+export default function PublicHeader({ signInHref = '/login', onSearchClick, accountMenu }: PublicHeaderProps) {
   const path = usePathname() || '/';
   const [moreOpen, setMoreOpen] = useState(false);
   const [drawer, setDrawer] = useState(false);
@@ -80,7 +81,7 @@ export default function PublicHeader({ signInHref = '/login', onSearchClick }: P
               <span className="theme-ic"><Icon name={dark ? 'moon' : 'sun'} size={18} /></span>
             </button>
             <Link className="btn btn-primary hide-sm pl-list-property" href="/seller/listings/new"><Icon name="plus" size={16} />List property</Link>
-            <Link className="btn btn-ghost hide-sm" href={signInHref}>Sign in</Link>
+            {accountMenu ?? <Link className="btn btn-ghost hide-sm" href={signInHref}>Sign in</Link>}
             <button className="btn btn-ghost btn-icon only-burger" aria-label="Open menu" onClick={() => setDrawer(true)}>
               <Icon name="menu" size={22} />
             </button>

@@ -1,13 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { io } from "next/cache";
-import { notFound } from "next/navigation";
-
-import { PropertyDetailsView } from "@/components/property/property-details-view";
-import {
-  getPropertyById,
-  PropertyNotFoundError,
-} from "@/lib/api/properties";
+import { PropertyDetailsLoader } from "@/components/property/property-details-loader";
 
 import PropertyDetailsLoading from "./loading";
 
@@ -28,19 +22,7 @@ async function PropertyDetailsContent({
 
   const { id } = await params;
 
-  const property = await getPropertyById(id).catch((error: unknown) => {
-    if (error instanceof PropertyNotFoundError) {
-      notFound();
-    }
-
-    throw error;
-  });
-
-  if (property.status !== "PUBLISHED") {
-    notFound();
-  }
-
-  return <PropertyDetailsView property={property} />;
+  return <PropertyDetailsLoader id={id} />;
 }
 
 export default function PropertyDetailsPage({
