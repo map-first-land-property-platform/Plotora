@@ -21,6 +21,7 @@ import {
   type SellerPropertyRequest,
 } from "@/lib/api/sellerProperties";
 import { firstName, getSessionUser, greeting, initials, signOut, type SessionUser } from "@/lib/auth/session";
+import PropertyLocationPicker from "@/components/property-location-picker";
 import "./seller.css";
 
 const inter = Inter({ subsets: ["latin"], display: "swap" });
@@ -491,7 +492,7 @@ export default function SellerPage() {
   return (
     <div className={`seller-app ${inter.className} min-h-screen bg-[#f3f6fa] text-[#0f2038] antialiased [&_h1]:tracking-[-0.03em] [&_h2]:tracking-[-0.02em]`}>
       {/* Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-40 flex w-[220px] flex-col border-r border-[#e3e9f0] bg-white transition-transform md:translate-x-0 ${nav ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-55 flex-col border-r border-[#e3e9f0] bg-white transition-transform md:translate-x-0 ${nav ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex h-16 items-center px-4">
           <Link href="/" aria-label="Plotora home">
             <Image className="seller-logo" src="/assets/images/plotora-logo-transparent.png" alt="Plotora" width={0} height={0} sizes="140px" unoptimized priority style={{ width: 140, height: "auto" }} />
@@ -513,7 +514,7 @@ export default function SellerPage() {
       </aside>
       {nav && <button type="button" aria-label="Close navigation overlay" onClick={() => setNav(false)} className="fixed inset-0 z-30 bg-slate-950/30 md:hidden" />}
 
-      <div className="md:ml-[220px]">
+      <div className="md:ml-55">
         {/* Top bar */}
         <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-[#e3e9f0] bg-white px-4 sm:px-6">
           <button type="button" aria-label="Open navigation" onClick={() => setNav(true)} className="p-1 md:hidden"><Ic n="menu" s={22} /></button>
@@ -541,7 +542,7 @@ export default function SellerPage() {
                   onClick={() => setAccountOpen((open) => !open)}
                   className="flex h-11 items-center gap-2 rounded-full border border-[#e8edf0] bg-white py-1 pl-1 pr-2.5 text-left transition hover:border-[#c9d8dc] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#13816f]/30"
                 >
-                  <span aria-hidden="true" className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-orange-400 text-[13px] font-bold tracking-[0.02em] text-white">{initials(user.fullName)}</span>
+                  <span aria-hidden="true" className="flex h-8.5 w-8.5 items-center justify-center rounded-full bg-orange-400 text-[13px] font-bold tracking-[0.02em] text-white">{initials(user.fullName)}</span>
                   <span className="hidden min-w-0 sm:block">
                     <span className="block max-w-40 truncate text-[13px] font-semibold leading-4 text-[#182b35]">{firstName(user.fullName)}</span>
                     <span className="block text-xs leading-4 text-[#697b86]">Seller</span>
@@ -570,7 +571,7 @@ export default function SellerPage() {
           </div>
         </header>
 
-        <main className="mx-auto max-w-[1200px] px-4 py-6 sm:px-6">
+        <main className="mx-auto max-w-300 px-4 py-6 sm:px-6">
           {/* ───── Dashboard ───── */}
           {view === "dashboard" && (
             <>
@@ -666,7 +667,7 @@ export default function SellerPage() {
                   ))}
                 </div>
                 <div className="flex items-center justify-between gap-3 p-3">
-                  <div className="relative w-full max-w-[260px]">
+                  <div className="relative w-full max-w-65">
                     <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"><Ic n="search" s={15} /></span>
                     <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search listings…" aria-label="Search listings"
                       className="w-full rounded-lg border border-[#dfe7f1] py-2 pl-8 pr-3 text-xs outline-none focus:border-[#0b8579]" />
@@ -680,7 +681,7 @@ export default function SellerPage() {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[760px] text-left text-xs">
+                  <table className="w-full min-w-190 text-left text-xs">
                     <thead>
                       <tr className="bg-[#f7f9fc] text-[10px] font-bold uppercase tracking-wide text-[#6c7a8f]">
                         <th className="w-10 px-4 py-3"><input type="checkbox" aria-label="Select all"
@@ -759,7 +760,7 @@ export default function SellerPage() {
 
           {/* ───── Add / Edit property wizard ───── */}
           {view === "form" && (
-            <div className="mx-auto max-w-[900px]">
+            <div className="mx-auto max-w-225">
               <button type="button" onClick={() => go("listings")} className="mb-3 inline-flex items-center gap-1.5 text-xs text-[#6c7a8f] hover:text-slate-800"><Ic n="back" s={14} />My listings</button>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-[#0f2038]">{editing ? "Edit property" : "Add a property"}</h1>
@@ -817,7 +818,7 @@ export default function SellerPage() {
                         <label htmlFor="desc" className="text-xs font-semibold">Description <span className="text-red-500">*</span></label>
                         <button type="button" onClick={draftWithAI} className="inline-flex items-center gap-1 rounded-md bg-[#e7f5f3] px-2 py-1 text-[11px] font-semibold text-[#0b8579]"><Ic n="spark" s={12} />Draft with AI</button>
                       </div>
-                      <textarea id="desc" className={`${inp} min-h-[110px] resize-y`} maxLength={2000} value={form.description}
+                      <textarea id="desc" className={`${inp} min-h-27.5 resize-y`} maxLength={2000} value={form.description}
                         onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the property, surroundings, access and any restrictions…" />
                     </div>
                   </>
@@ -841,9 +842,11 @@ export default function SellerPage() {
                         <input type="number" min="79.5" max="81.9" step="any" inputMode="decimal" className={inp} value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} placeholder="e.g. 79.8612" />
                       </Field>
                     </div>
-                    <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-[#cfd8e3] bg-white px-4 text-center text-xs text-[#6c7a8f]">
-                      Picking the location and drawing the boundary on the map will be added with the shared map component.
-                    </div>
+                    <PropertyLocationPicker
+                      latitude={form.latitude}
+                      longitude={form.longitude}
+                      onCoordinatesChange={(latitude, longitude) => setForm((current) => ({ ...current, latitude, longitude }))}
+                    />
                   </>
                 )}
                 {step === 2 && (
