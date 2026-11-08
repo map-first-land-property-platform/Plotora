@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import { io } from "next/cache";
-import { PropertyDetailsLoader } from "@/components/property/property-details-loader";
+import { PropertyDetailsLoader } from "@/features/property/components/property-details-loader";
 
 import PropertyDetailsLoading from "./loading";
 

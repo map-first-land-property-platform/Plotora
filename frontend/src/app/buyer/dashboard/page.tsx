@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { BuyerPortal } from "@/components/buyer/buyer-portal";
+import { BuyerPortal } from "@/features/buyer/components/buyer-portal";
 
 export const metadata: Metadata = {
   title: "Buyer Dashboard | Plotora",

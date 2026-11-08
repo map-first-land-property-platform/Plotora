@@ -1,4 +1,4 @@
-package com.plotora.backend.controller;
+package com.plotora.backend.property.controller;
 
 import com.plotora.backend.auth.JwtService;
 import com.plotora.backend.config.SecurityConfig;

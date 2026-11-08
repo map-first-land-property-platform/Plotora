@@ -21,7 +21,7 @@ import {
   type SellerPropertyRequest,
 } from "@/lib/api/sellerProperties";
 import { firstName, getSessionUser, greeting, initials, signOut, type SessionUser } from "@/lib/auth/session";
-import PropertyLocationPicker from "@/components/property-location-picker";
+import PropertyLocationPicker from "@/features/seller/components/property-location-picker";
 import "./seller.css";
 
 const inter = Inter({ subsets: ["latin"], display: "swap" });
