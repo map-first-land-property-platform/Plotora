@@ -74,13 +74,16 @@ The project is planned around **six progressively enhanced MVP releases**. Each 
 
 ```text
 Plotora/
-├── frontend/        # Web application
-├── backend/         # Backend services and APIs
-├── .gitignore
+├── frontend/        # Next.js web application
+├── backend/         # Spring Boot API and Flyway migrations
+├── infrastructure/  # Local PostgreSQL/PostGIS services
+├── docs/             # Architecture and team documentation
+├── CONTRIBUTING.md   # Branch, PR, and local-check conventions
 └── README.md
 ```
 
-The project structure will evolve as implementation progresses.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the internal frontend and
+backend boundaries. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
 
 ## Collaboration and Git Workflow
 

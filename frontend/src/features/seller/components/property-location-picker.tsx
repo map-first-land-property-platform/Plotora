@@ -19,7 +19,9 @@ export default function PropertyLocationPicker({ latitude, longitude, onCoordina
   const callback = useRef(onCoordinatesChange);
   const [mapError, setMapError] = useState(false);
 
-  callback.current = onCoordinatesChange;
+  useEffect(() => {
+    callback.current = onCoordinatesChange;
+  }, [onCoordinatesChange]);
 
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;

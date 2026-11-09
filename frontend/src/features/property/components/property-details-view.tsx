@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowUpRight, Check, ChevronRight, FileText, House, MapPin, Ruler, Share2 } from "lucide-react";
 import PublicHeader from "@/layout/PublicHeader";
 import PublicFooter from "@/layout/PublicFooter";
-import { BuyerProfileMenu } from "@/components/buyer/buyer-profile-menu";
+import { BuyerProfileMenu } from "@/features/buyer/components/buyer-profile-menu";
 import { PropertyGallery } from "./property-gallery";
 import { PropertyLocationMap } from "./property-location-map";
 import { CATEGORY_LABELS, FURNISHING_LABELS, LISTING_TYPE_LABELS, formatDate, formatExtent, formatFloorArea, formatMonthlyRent, formatPrice, formatPricePerPerch } from "@/lib/property-format";

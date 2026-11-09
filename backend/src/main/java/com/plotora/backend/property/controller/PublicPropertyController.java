@@ -1,4 +1,4 @@
-package com.plotora.backend.controller;
+package com.plotora.backend.property.controller;
 
 import com.plotora.backend.property.dto.PublicPropertyResponse;
 import com.plotora.backend.property.service.PropertyService;

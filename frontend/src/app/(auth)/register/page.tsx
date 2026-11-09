@@ -9,11 +9,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Briefcase, Heart, Tag, Wrench } from "lucide-react";
 
-import AuthShell from "@/components/auth/AuthShell";
-import TextField from "@/components/auth/TextField";
-import PasswordInput from "@/components/auth/PasswordInput";
-import PasswordStrength from "@/components/auth/PasswordStrength";
-import { GoogleIcon } from "@/components/auth/SocialIcons";
+import AuthShell from "@/features/auth/components/AuthShell";
+import TextField from "@/features/auth/components/TextField";
+import PasswordInput from "@/features/auth/components/PasswordInput";
+import PasswordStrength from "@/features/auth/components/PasswordStrength";
+import { GoogleIcon } from "@/features/auth/components/SocialIcons";
 import { api, ApiError } from "@/lib/api";
 
 const schema = z.object({

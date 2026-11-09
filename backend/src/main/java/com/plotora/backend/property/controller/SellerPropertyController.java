@@ -1,4 +1,4 @@
-package com.plotora.backend.controller;
+package com.plotora.backend.property.controller;
 
 import com.plotora.backend.property.ListingStatus;
 import com.plotora.backend.property.dto.PropertyRequest;
