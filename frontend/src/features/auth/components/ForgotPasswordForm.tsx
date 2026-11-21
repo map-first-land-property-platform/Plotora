@@ -36,13 +36,13 @@ export default function ForgotPasswordForm() {
       <h1 id="recovery-email-title" tabIndex={-1} ref={(node) => node?.focus()}>Check your email</h1>
       <p className="recovery-subtitle">If an eligible account exists for <strong>{sentTo}</strong>, a password-reset link will arrive shortly. The link expires 30 minutes after it is created.</p>
       <p className="recovery-help">Check your spam folder too. If you requested several links, use the most recent one. You can request another after a minute; delivery may take a little longer.</p>
-      <button className="recovery-text-button" type="button" onClick={() => { reset(); setSentTo(null); }}>Try again or use a different email</button>
+      <button className="recovery-text-button" type="button" onClick={() => { reset(); setSentTo(null); }}>Use a different email</button>
     </section>
   );
 
   return (
     <>
-      <RecoveryHeading title="Forgot your password?">Enter the email linked to your account and we&apos;ll help you reset your password.</RecoveryHeading>
+      <RecoveryHeading title="Forgot your password?">Enter the email linked to your account and we&apos;ll send a reset link.</RecoveryHeading>
       <form className="recovery-form" noValidate aria-busy={isSubmitting} onSubmit={handleSubmit(onSubmit)}>
         {serverError && <p className="recovery-error" role="alert">{serverError}</p>}
         <TextField label="Email address" required type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} placeholder="you@example.com" icon={<Mail className="ic" size={18} aria-hidden="true" />} error={errors.email?.message} {...register("email")} />

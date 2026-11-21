@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Check, CheckCircle2, Circle, Link as LinkIcon } from "lucide-react";
+import { Check, CheckCircle2, Link as LinkIcon } from "lucide-react";
 import type { z } from "zod";
 import PasswordInput from "./PasswordInput";
 import PasswordStrength from "./PasswordStrength";
@@ -75,18 +75,17 @@ export default function ResetPasswordForm() {
   return (
     <>
       <RecoveryHeading title="Set a new password">Choose a strong password you don&apos;t use elsewhere.</RecoveryHeading>
-      <form className="recovery-form" noValidate aria-busy={isSubmitting} onSubmit={handleSubmit(onSubmit)}>
+      <form className="recovery-form recovery-reset-form" noValidate aria-busy={isSubmitting} onSubmit={handleSubmit(onSubmit)}>
         {serverError && <p className="recovery-error" role="alert">{serverError}</p>}
         <div>
           <PasswordInput label="New password" required autoComplete="new-password" maxLength={100} error={errors.password?.message} aria-describedby="recovery-password-rules" {...register("password")} />
-          <PasswordStrength password={password} />
+          <div className="recovery-strength"><PasswordStrength password={password} /></div>
         </div>
         <PasswordInput label="Confirm new password" required autoComplete="new-password" maxLength={100} error={errors.confirmPassword?.message} {...register("confirmPassword")} />
         <ul className="recovery-rules" id="recovery-password-rules" aria-label="Password requirements">
           {recoveryPasswordRules.map((rule) => {
             const met = password.length > 0 && rule.test(password);
-            const Icon = met ? Check : Circle;
-            return <li key={rule.label} data-met={met}><Icon size={14} aria-hidden="true" /><span className="sr-only">{met ? "Met: " : "Required: "}</span>{rule.label}</li>;
+            return <li key={rule.label} data-met={met}><Check size={16} strokeWidth={2.25} aria-hidden="true" /><span className="sr-only">{met ? "Met: " : "Required: "}</span>{rule.label}</li>;
           })}
         </ul>
         <button className="recovery-primary" type="submit" disabled={isSubmitting}>{isSubmitting ? "Updating…" : "Update password"}</button>

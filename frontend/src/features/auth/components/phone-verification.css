@@ -1,0 +1,49 @@
+.auth.auth-phone { grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--surface); }
+.auth.auth-phone .auth-art { position: sticky; top: 0; height: 100dvh; align-self: start; }
+.auth.auth-phone .auth-art::before,
+.auth.auth-phone .auth-top .back-link { display: none; }
+.auth.auth-phone .auth-art-in { display: flex; min-height: 0; height: 100%; padding: 40px 48px; }
+.auth.auth-phone .auth-copy { max-width: 540px; margin-top: auto; margin-bottom: 32px; }
+.auth.auth-phone .auth-copy h2 { font-size: clamp(34px, 3.6vw, 54px); line-height: 1.12; text-wrap: balance; }
+.auth.auth-phone .auth-copy > p { max-width: 460px; font-size: 16px; line-height: 1.65; color: #e6f2f1; }
+.auth.auth-phone .auth-points { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; margin-top: 28px; }
+.auth.auth-phone .auth-points li { font-size: 13px; line-height: 1.65; color: #e6f2f1; }
+.auth.auth-phone .auth-points li > svg { flex-shrink: 0; margin-top: 3px; color: #8be0d5; }
+.auth.auth-phone .auth-side { position: relative; background: var(--surface); }
+.auth.auth-phone .auth-top { position: absolute; top: 20px; right: 20px; padding: 0; z-index: 1; }
+.auth.auth-phone .auth-main { width: min(500px, calc(100% - 48px)); padding: 76px 0 48px; }
+.phone-card { width: 100%; text-align: center; }
+.phone-card .phone-logo { display: block; width: 240px; height: 80px; object-fit: contain; margin: 0 auto 28px; }
+:root[data-theme="dark"] .phone-card .phone-logo { filter: brightness(0) invert(1); }
+.phone-guard { display: grid; place-items: center; width: 68px; height: 68px; border-radius: 22px; margin: 0 auto 16px; background: var(--brand-50); color: var(--brand); }
+.phone-card h1 { font-size: 28px; line-height: 33.6px; letter-spacing: -.92px; color: var(--text); }
+.phone-subtitle { margin-top: 8px; font-size: 14px; line-height: 23.8px; color: var(--muted); }
+.phone-form { margin-top: 28px; }
+.phone-otp-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; max-width: 362px; margin: 0 auto; }
+.auth.auth-phone .phone-otp-grid input { width: 100%; min-width: 0; height: 60px; padding: 0; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--text); text-align: center; font-size: 22px; font-weight: 600; outline: none; }
+.auth.auth-phone .phone-otp-grid input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); }
+.auth.auth-phone .phone-otp-grid input[aria-invalid="true"] { border-color: var(--danger); }
+.phone-code-error { margin-top: 12px; color: var(--danger); font-size: 12px; line-height: 16px; }
+.phone-primary { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 46px; margin-top: 28px; padding: 10px 16px; border-radius: 10px; background: var(--brand); color: var(--on-brand); font-size: 15px; font-weight: 600; }
+.phone-primary:hover:not(:disabled) { background: var(--brand-600); }
+.phone-primary:disabled { opacity: .6; cursor: not-allowed; }
+.phone-resend { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 16px; font-size: 13px; line-height: 20px; color: var(--muted); }
+.phone-resend button { font-weight: 600; color: var(--brand); }
+.phone-resend button:hover:not(:disabled) { text-decoration: underline; }
+.phone-resend button:disabled { cursor: default; }
+.phone-feedback { font-size: 12px; line-height: 20px; color: var(--brand); }
+.phone-feedback:not(:empty) { margin-top: 16px; }
+.phone-preview { display: flex; gap: 12px; margin-top: 28px; border: 1px solid color-mix(in srgb, var(--info) 22%, transparent); border-radius: 10px; padding: 16px; background: var(--info-bg); color: var(--info); text-align: left; }
+.phone-preview > svg { flex-shrink: 0; margin-top: 3px; }
+.phone-preview strong { display: block; font-size: 14px; line-height: 22px; }
+.phone-preview p { margin-top: 2px; font-size: 14px; line-height: 23.8px; }
+.phone-back { display: inline-block; margin-top: 24px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.phone-back:hover { color: var(--brand); }
+@media (max-width: 1023px) {
+  .auth.auth-phone { grid-template-columns: minmax(0, 1fr); }
+  .auth.auth-phone .auth-art { display: none; }
+}
+@media (max-width: 380px) {
+  .phone-otp-grid { gap: 7px; }
+  .phone-card h1 { font-size: 26px; }
+}
