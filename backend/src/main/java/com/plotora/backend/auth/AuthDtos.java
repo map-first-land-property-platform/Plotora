@@ -25,10 +25,10 @@ public final class AuthDtos {
         boolean rememberMe
     ) {}
 
-    public record ForgotPasswordRequest(@NotBlank @Email String email) {}
+    public record ForgotPasswordRequest(@NotBlank @Email @Size(max = 255) String email) {}
 
     public record ResetPasswordRequest(
-        @NotBlank String token,
+        @NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{43}", message = "This reset link is invalid. Request a new link.") String token,
         @NotBlank @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,100}$", message = "Use 8+ characters with upper case, lower case and a number") String password
     ) {}
 

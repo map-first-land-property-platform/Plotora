@@ -30,9 +30,11 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
             String token = readCookie(request, AuthController.ACCESS_COOKIE);
             if (token != null) {
-                var userId = jwtService.validateAndGetUserId(token);
-                if (userId != null) {
-                    users.findById(userId).filter(user -> "ACTIVE".equals(user.getStatus())).ifPresent(this::authenticate);
+                var identity = jwtService.validateIdentity(token);
+                if (identity != null) {
+                    users.findById(identity.userId())
+                        .filter(user -> "ACTIVE".equals(user.getStatus()) && user.getAuthVersion() == identity.authVersion())
+                        .ifPresent(this::authenticate);
                 }
             }
         }

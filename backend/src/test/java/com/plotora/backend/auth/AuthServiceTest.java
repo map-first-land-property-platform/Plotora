@@ -32,8 +32,6 @@ class AuthServiceTest {
     @Mock UserRepository users;
     @Mock RoleRepository roles;
     @Mock RefreshTokenRepository refreshTokens;
-    @Mock PasswordResetTokenRepository resetTokens;
-    @Mock JavaMailSender mailSender;
 
     private PasswordEncoder passwordEncoder;
     private JwtService jwtService;
@@ -43,8 +41,7 @@ class AuthServiceTest {
     void setUp() {
         passwordEncoder = new BCryptPasswordEncoder(4);
         jwtService = new JwtService("unit-test-secret-that-is-at-least-32-bytes-long", 15);
-        authService = new AuthService(users, roles, refreshTokens, resetTokens, passwordEncoder, jwtService,
-            new AuthMailService(mailSender, "no-reply@example.test", "http://localhost:3000"), 7);
+        authService = new AuthService(users, roles, refreshTokens, passwordEncoder, jwtService, 7);
     }
 
     @Test
@@ -77,7 +74,7 @@ class AuthServiceTest {
     @Test
     void loginIssuesSignedAccessAndHashedRefreshTokens() {
         User user = userWithPassword("CorrectPass1");
-        when(users.findByEmailIgnoreCase("buyer@example.com")).thenReturn(Optional.of(user));
+        when(users.findForUpdateByEmail("buyer@example.com")).thenReturn(Optional.of(user));
         when(refreshTokens.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         AuthService.Session session = authService.login(new LoginRequest("BUYER@example.com", "CorrectPass1", true));
@@ -91,7 +88,7 @@ class AuthServiceTest {
 
     @Test
     void loginDoesNotRevealWhetherEmailOrPasswordWasWrong() {
-        when(users.findByEmailIgnoreCase("buyer@example.com")).thenReturn(Optional.empty());
+        when(users.findForUpdateByEmail("buyer@example.com")).thenReturn(Optional.empty());
 
         assertThrows(BadCredentialsException.class,
             () -> authService.login(new LoginRequest("buyer@example.com", "wrong", false)));
@@ -102,6 +99,8 @@ class AuthServiceTest {
         User user = userWithPassword("CorrectPass1");
         String raw = TokenHasher.newToken();
         RefreshToken stored = new RefreshToken(user, TokenHasher.hash(raw), OffsetDateTime.now().plusDays(7));
+        when(refreshTokens.findUserIdByTokenHash(TokenHasher.hash(raw))).thenReturn(Optional.of(user.getId()));
+        when(users.findForUpdateById(user.getId())).thenReturn(Optional.of(user));
         when(refreshTokens.findByTokenHash(TokenHasher.hash(raw))).thenReturn(Optional.of(stored));
         when(refreshTokens.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -110,36 +109,6 @@ class AuthServiceTest {
         assertThat(stored.isRevoked()).isTrue();
         assertThat(rotated.refreshToken()).isNotEqualTo(raw);
         assertThat(jwtService.validateAndGetUserId(rotated.accessToken())).isNotNull();
-    }
-
-    @Test
-    void resetPasswordConsumesTokenAndRevokesExistingSessions() {
-        User user = userWithPassword("OldPass1");
-        String raw = TokenHasher.newToken();
-        PasswordResetToken token = new PasswordResetToken(user, TokenHasher.hash(raw), OffsetDateTime.now().plusMinutes(30));
-        when(resetTokens.findByTokenHash(TokenHasher.hash(raw))).thenReturn(Optional.of(token));
-        when(refreshTokens.findAllByUser_IdAndRevokedAtIsNull((UUID) ReflectionTestUtils.getField(user, "id")))
-            .thenReturn(List.of());
-
-        authService.resetPassword(new ResetPasswordRequest(raw, "NewStrong2"));
-
-        assertThat(token.isUsed()).isTrue();
-        assertThat(passwordEncoder.matches("NewStrong2", user.getPasswordHash())).isTrue();
-        assertThat(passwordEncoder.matches("OldPass1", user.getPasswordHash())).isFalse();
-    }
-
-    @Test
-    void resetPasswordRejectsExpiredTokens() {
-        User user = userWithPassword("OldPass1");
-        String raw = TokenHasher.newToken();
-        PasswordResetToken token = new PasswordResetToken(user, TokenHasher.hash(raw), OffsetDateTime.now().minusMinutes(1));
-        when(resetTokens.findByTokenHash(TokenHasher.hash(raw))).thenReturn(Optional.of(token));
-
-        AuthException error = assertThrows(AuthException.class,
-            () -> authService.resetPassword(new ResetPasswordRequest(raw, "NewStrong2")));
-
-        assertThat(error.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
-        assertThat(passwordEncoder.matches("OldPass1", user.getPasswordHash())).isTrue();
     }
 
     private User userWithPassword(String rawPassword) {

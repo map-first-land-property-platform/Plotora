@@ -35,10 +35,19 @@ services:
       DB_NAME: ${POSTGRES_DB:?POSTGRES_DB must be set}
       DB_USERNAME: ${POSTGRES_USER:?POSTGRES_USER must be set}
       DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
-      MAIL_HOST: mailpit
-      MAIL_PORT: 1025
-      MAIL_SMTP_AUTH: "false"
-      MAIL_SMTP_STARTTLS: "false"
+      MAIL_HOST: ${MAIL_HOST:-mailpit}
+      MAIL_PORT: ${MAIL_PORT:-1025}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-no-reply@plotora.local}
+      MAIL_SMTP_AUTH: ${MAIL_SMTP_AUTH:-false}
+      MAIL_SMTP_STARTTLS: ${MAIL_SMTP_STARTTLS:-false}
+      WEB_BASE_URL: ${WEB_BASE_URL:-http://localhost:3000}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-dev-only-secret-change-me-12345}
+      MAIL_QUEUE_SECRET: ${MAIL_QUEUE_SECRET:-dev-only-recovery-mail-secret-change-me-12345}
+      RECOVERY_PRODUCTION: ${RECOVERY_PRODUCTION:-false}
       UPLOAD_DIR: /app/uploads
       JWT_ACCESS_MINUTES: 720
     ports:

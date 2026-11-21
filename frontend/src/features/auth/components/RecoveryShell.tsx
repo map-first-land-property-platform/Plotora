@@ -19,10 +19,6 @@ export default function RecoveryShell({ children }: { children: ReactNode }) {
   );
 }
 
-export function RecoveryPreviewNotice() {
-  return <p className="recovery-preview"><strong>Frontend preview</strong> Email delivery and password changes are not connected yet. Do not enter your current password.</p>;
-}
-
 export function RecoveryHeading({ title, children }: { title: string; children: ReactNode }) {
   return <><h1>{title}</h1><p className="recovery-subtitle">{children}</p></>;
 }

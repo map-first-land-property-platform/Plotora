@@ -20,6 +20,9 @@ public class RefreshToken {
     @Column(name = "token_hash", nullable = false, unique = true, length = 64)
     private String tokenHash;
 
+    @Column(name = "auth_version", nullable = false)
+    private long authVersion;
+
     @Column(name = "expires_at", nullable = false)
     private OffsetDateTime expiresAt;
 
@@ -35,9 +38,11 @@ public class RefreshToken {
         this.user = user;
         this.tokenHash = tokenHash;
         this.expiresAt = expiresAt;
+        this.authVersion = user.getAuthVersion();
     }
 
     public User getUser() { return user; }
+    public long getAuthVersion() { return authVersion; }
     public OffsetDateTime getExpiresAt() { return expiresAt; }
     public void revoke() { this.revokedAt = OffsetDateTime.now(); }
     public boolean isRevoked() { return revokedAt != null; }

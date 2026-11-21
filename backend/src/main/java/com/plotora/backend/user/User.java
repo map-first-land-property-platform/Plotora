@@ -26,6 +26,9 @@ public class User {
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
+    @Column(name = "auth_version", nullable = false)
+    private long authVersion;
+
     @Column(name = "email_verified", nullable = false)
     private boolean emailVerified = false;
 
@@ -69,6 +72,8 @@ public class User {
     public String getPhone() { return phone; }
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public long getAuthVersion() { return authVersion; }
+    public void invalidateSessions() { this.authVersion++; }
     public boolean isEmailVerified() { return emailVerified; }
     public void setEmailVerified(boolean v) { this.emailVerified = v; }
     public boolean isPhoneVerified() { return phoneVerified; }

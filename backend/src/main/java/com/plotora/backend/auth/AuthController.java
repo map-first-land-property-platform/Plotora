@@ -8,6 +8,9 @@ import com.plotora.backend.auth.AuthDtos.RegisterRequest;
 import com.plotora.backend.auth.AuthDtos.ResetPasswordRequest;
 import com.plotora.backend.auth.AuthDtos.UserResponse;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import com.plotora.backend.auth.recovery.PasswordRecoveryService;
+import com.plotora.backend.auth.recovery.RecoveryRateLimiter;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -32,12 +35,16 @@ public class AuthController {
     private final AuthService authService;
     private final Duration accessLifetime;
     private final boolean secureCookies;
+    private final PasswordRecoveryService recovery;
+    private final RecoveryRateLimiter recoveryLimiter;
 
-    public AuthController(AuthService authService, JwtService jwtService,
+    public AuthController(AuthService authService, JwtService jwtService, PasswordRecoveryService recovery, RecoveryRateLimiter recoveryLimiter,
                           @Value("${app.cookie.secure:false}") boolean secureCookies) {
         this.authService = authService;
         this.accessLifetime = jwtService.getAccessLifetime();
         this.secureCookies = secureCookies;
+        this.recovery = recovery;
+        this.recoveryLimiter = recoveryLimiter;
     }
 
     @GetMapping("/csrf")
@@ -79,14 +86,15 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password")
-    public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        authService.requestPasswordReset(request.email());
+    public MessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request, HttpServletRequest http) {
+        recovery.requestReset(request.email(), http.getRemoteAddr());
         return new MessageResponse("If an account exists for this email, a password reset link will be sent.");
     }
 
     @PostMapping("/reset-password")
-    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request, HttpServletResponse response) {
-        authService.resetPassword(request);
+    public MessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request, HttpServletResponse response, HttpServletRequest http) {
+        recoveryLimiter.checkReset(http.getRemoteAddr(), request.token());
+        recovery.resetPassword(request);
         clearSessionCookies(response);
         return new MessageResponse("Your password has been reset. Please sign in.");
     }

@@ -16,7 +16,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static com.plotora.backend.auth.AuthDtos.*;
@@ -28,29 +27,23 @@ public class AuthService {
     private final UserRepository users;
     private final RoleRepository roles;
     private final RefreshTokenRepository refreshTokens;
-    private final PasswordResetTokenRepository resetTokens;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final AuthMailService mailService;
     private final Duration refreshLifetime;
 
     public AuthService(
         UserRepository users,
         RoleRepository roles,
         RefreshTokenRepository refreshTokens,
-        PasswordResetTokenRepository resetTokens,
         PasswordEncoder passwordEncoder,
         JwtService jwtService,
-        AuthMailService mailService,
         @Value("${app.jwt.refresh-days:7}") long refreshDays
     ) {
         this.users = users;
         this.roles = roles;
         this.refreshTokens = refreshTokens;
-        this.resetTokens = resetTokens;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
-        this.mailService = mailService;
         this.refreshLifetime = Duration.ofDays(refreshDays);
     }
 
@@ -73,7 +66,7 @@ public class AuthService {
 
     @Transactional
     public Session login(LoginRequest request) {
-        User user = users.findByEmailIgnoreCase(normalizeEmail(request.email()))
+        User user = users.findForUpdateByEmail(normalizeEmail(request.email()))
             .orElseThrow(() -> new BadCredentialsException("Invalid credentials"));
         if (!"ACTIVE".equals(user.getStatus()) || user.getPasswordHash() == null
             || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
@@ -86,9 +79,12 @@ public class AuthService {
     @Transactional
     public Session refresh(String presentedToken) {
         if (presentedToken == null || presentedToken.isBlank()) throw invalidRefresh();
-        RefreshToken stored = refreshTokens.findByTokenHash(TokenHasher.hash(presentedToken)).orElseThrow(AuthService::invalidRefresh);
-        if (stored.isRevoked() || stored.isExpired() || !"ACTIVE".equals(stored.getUser().getStatus())) throw invalidRefresh();
-        User user = stored.getUser();
+        String hash = TokenHasher.hash(presentedToken);
+        UUID userId = refreshTokens.findUserIdByTokenHash(hash).orElseThrow(AuthService::invalidRefresh);
+        User user = users.findForUpdateById(userId).orElseThrow(AuthService::invalidRefresh);
+        RefreshToken stored = refreshTokens.findByTokenHash(hash).orElseThrow(AuthService::invalidRefresh);
+        if (stored.isRevoked() || stored.isExpired() || !"ACTIVE".equals(user.getStatus())
+            || stored.getAuthVersion() != user.getAuthVersion()) throw invalidRefresh();
         stored.revoke();
         Duration remaining = Duration.between(OffsetDateTime.now(), stored.getExpiresAt());
         boolean remembered = remaining.compareTo(Duration.ofHours(12)) > 0;
@@ -111,31 +107,6 @@ public class AuthService {
         return toResponse(user);
     }
 
-    @Transactional
-    public void requestPasswordReset(String requestedEmail) {
-        Optional<User> candidate = users.findByEmailIgnoreCase(normalizeEmail(requestedEmail))
-            .filter(user -> "ACTIVE".equals(user.getStatus()));
-        if (candidate.isEmpty()) return;
-
-        User user = candidate.get();
-        resetTokens.findAllByUser_IdAndUsedAtIsNull(user.getId()).forEach(PasswordResetToken::markUsed);
-        String rawToken = TokenHasher.newToken();
-        PasswordResetToken reset = new PasswordResetToken(user, TokenHasher.hash(rawToken), OffsetDateTime.now().plusMinutes(30));
-        resetTokens.save(reset);
-        if (!mailService.trySendPasswordReset(user.getEmail(), rawToken)) reset.markUsed();
-    }
-
-    @Transactional
-    public void resetPassword(ResetPasswordRequest request) {
-        PasswordResetToken reset = resetTokens.findByTokenHash(TokenHasher.hash(request.token()))
-            .orElseThrow(AuthService::invalidReset);
-        if (reset.isUsed() || reset.isExpired()) throw invalidReset();
-        User user = reset.getUser();
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
-        reset.markUsed();
-        refreshTokens.findAllByUser_IdAndRevokedAtIsNull(user.getId()).forEach(RefreshToken::revoke);
-    }
-
     private Session createSession(User user, boolean rememberMe, Duration lifetime) {
         String rawRefresh = TokenHasher.newToken();
         refreshTokens.save(new RefreshToken(user, TokenHasher.hash(rawRefresh), OffsetDateTime.now().plus(lifetime)));
@@ -149,5 +120,4 @@ public class AuthService {
 
     private static String normalizeEmail(String email) { return email.trim().toLowerCase(java.util.Locale.ROOT); }
     private static AuthException invalidRefresh() { return new AuthException(HttpStatus.UNAUTHORIZED, "Your session has expired. Please sign in again."); }
-    private static AuthException invalidReset() { return new AuthException(HttpStatus.BAD_REQUEST, "This password reset link is invalid or has expired."); }
 }

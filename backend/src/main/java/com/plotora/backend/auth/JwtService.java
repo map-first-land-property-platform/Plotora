@@ -35,6 +35,7 @@ public class JwtService {
         return Jwts.builder()
             .subject(user.getId().toString())
             .claim("roles", user.getRoles().stream().map(role -> role.getName()).toList())
+            .claim("av", user.getAuthVersion())
             .issuedAt(Date.from(now))
             .expiration(Date.from(now.plus(accessLifetime)))
             .signWith(signingKey)
@@ -42,9 +43,17 @@ public class JwtService {
     }
 
     public UUID validateAndGetUserId(String token) {
+        Identity identity = validateIdentity(token);
+        return identity == null ? null : identity.userId();
+    }
+
+    public record Identity(UUID userId, long authVersion) {}
+
+    public Identity validateIdentity(String token) {
         try {
             Claims claims = Jwts.parser().verifyWith(signingKey).build().parseSignedClaims(token).getPayload();
-            return UUID.fromString(claims.getSubject());
+            Number version = claims.get("av", Number.class);
+            return new Identity(UUID.fromString(claims.getSubject()), version == null ? 0 : version.longValue());
         } catch (JwtException | IllegalArgumentException invalid) {
             return null;
         }
