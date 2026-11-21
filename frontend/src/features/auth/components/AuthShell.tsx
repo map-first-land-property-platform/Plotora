@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Map, Moon, ShieldCheck, Sun } from "lucide-react";
+import { KeyRound, Mail, Map, Moon, ShieldCheck, Sun } from "lucide-react";
 import { ReactNode, useSyncExternalStore } from "react";
 import "./auth-theme.css";
 
@@ -16,7 +16,7 @@ type Props = {
   image?: string;
   promoHeading?: string;
   promoCopy?: string;
-  variant?: "login" | "register";
+  variant?: "login" | "register" | "recovery";
   children: ReactNode;
 };
 
@@ -43,7 +43,7 @@ export default function AuthShell({
     <main className={`auth auth-${variant}`}>
       <aside
         className="auth-art"
-        aria-label="Discover property with Plotora"
+        aria-label={variant === "recovery" ? "Account recovery with Plotora" : "Discover property with Plotora"}
         style={{
           backgroundImage: `linear-gradient(180deg, rgba(6, 33, 43, .2) 0%, rgba(3, 30, 29, .82) 100%), url(${image})`,
           backgroundSize: "cover",
@@ -64,8 +64,13 @@ export default function AuthShell({
             <h2>{promoHeading}</h2>
             <p>{promoCopy}</p>
             <ul className="auth-points">
+              {variant === "recovery" ? <>
+                <li><Mail size={18} aria-hidden="true" /><span><strong>Start with your email</strong> — use the address linked to your account.</span></li>
+                <li><KeyRound size={18} aria-hidden="true" /><span><strong>Keep your account private</strong> — never share your password or reset link.</span></li>
+              </> : <>
               <li><Map size={18} /><span><strong>Map-first search</strong> — draw an area, compare price per perch.</span></li>
               <li><ShieldCheck size={18} /><span><strong>Verified listings</strong> — deed, ID and organisation checks.</span></li>
+              </>}
             </ul>
           </div>
         </div>
